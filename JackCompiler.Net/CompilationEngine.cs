@@ -83,24 +83,25 @@ namespace JackCompiler.Net
             instructions.Add("<ifStatement>");
 
             var lastTokenValue = string.Empty;
-            var ifSignature = new List<Token>();
 
-            while (lastTokenValue != ")")
+            while (tokens.Peek().Value != "{")
             {
+                if (lastTokenValue == "(")
+                {
+                    var expressionTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+
+                    instructions.AddRange(CompileExpression(expressionTokens));
+                }
+
                 var token = tokens.Pop();
 
                 lastTokenValue = token.Value;
-
-                ifSignature.Add(token);
                 instructions.Add(ToXmlElement(token));
             }
 
-            var bodyTokens = PopStatementBody(tokens);
+            var bodyTokens = PopStatementBody(tokens); //first token is "{", last token is "}"
 
-            foreach (var token in bodyTokens)
-            {
-                instructions.Add(ToXmlElement(token));
-            }
+            AddStatements(instructions, bodyTokens);
 
             var nextToken = tokens.Peek();
 
@@ -112,10 +113,7 @@ namespace JackCompiler.Net
 
                 var elseStatementBodyTokens = PopStatementBody(tokens);
 
-                foreach (var token in elseStatementBodyTokens)
-                {
-                    instructions.Add(ToXmlElement(token));
-                }
+                AddStatements(instructions, elseStatementBodyTokens);
             }
 
             instructions.Add("</ifStatement>");
@@ -144,19 +142,38 @@ namespace JackCompiler.Net
 
             var bodyTokens = PopStatementBody(tokens);
 
-            foreach (var token in bodyTokens)
-            {
-                instructions.Add(ToXmlElement(token));
-            }
+            AddStatements(instructions, bodyTokens);
 
             instructions.Add("</whileStatement>");
 
             return ("whileStatement", instructions);
         }
 
-        private IList<Token> PopStatementBody(Stack<Token> tokens)
+        private void AddStatements(List<string> instructions, Stack<Token> bodyTokens)
         {
-            var bodyTokens = new List<Token>();
+            var openingBracketToken = bodyTokens.Pop();
+
+            instructions.Add(ToXmlElement(openingBracketToken));
+
+            instructions.Add("<statements>");
+
+            while (bodyTokens.Count > 1)
+            {
+                var (constructType, constructInstructions) = CompileNextToken(bodyTokens);
+
+                instructions.AddRange(constructInstructions);
+            }
+
+            instructions.Add("</statements>");
+
+            var closingBracketToken = bodyTokens.Pop();
+
+            instructions.Add(ToXmlElement(closingBracketToken));
+        }
+
+        private Stack<Token> PopStatementBody(Stack<Token> tokens)
+        {
+            IList<Token> bodyTokens = new List<Token>();
 
             var indexOfClosingBracket = FindIndexOfClosingBracket(0, tokens);
             var numberOfRemainingTokensAfterSubroutine = tokens.Count - (indexOfClosingBracket + 1);
@@ -169,7 +186,7 @@ namespace JackCompiler.Net
                 bodyTokens.Add(token);
             }
 
-            return bodyTokens;
+            return new Stack<Token>(bodyTokens.Reverse());
         }
 
         private (string ConstructType, IList<string> ConstructInstructions) CompileDo(Stack<Token> tokens)
@@ -182,11 +199,17 @@ namespace JackCompiler.Net
 
             while (lastTokenValue != ";")
             {
+                if (lastTokenValue == "(")
+                {
+                    var expressionTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+
+                    instructions.AddRange(CompileExpressionList(expressionTokens));
+                }
+
                 var token = tokens.Pop();
 
-                lastTokenValue = token.Value;
-
                 instructions.Add(ToXmlElement(token));
+                lastTokenValue = token.Value;
             }
 
             instructions.Add("</doStatement>");
@@ -200,16 +223,106 @@ namespace JackCompiler.Net
 
             instructions.Add("<letStatement>");
 
-            var signature = tokens.Pop(5);
+            var lastTokenValue = string.Empty;
 
-            foreach (var token in signature)
+            while (lastTokenValue != ";")
             {
+                if (lastTokenValue == "[")
+                {
+                    var expressionTokens = PopExpressionTokensBetweenBrackets("[", "]", tokens);
+
+                    instructions.AddRange(CompileExpression(expressionTokens));
+                }
+                else if (lastTokenValue == "=")
+                {
+                    var expressionTokens = PopUntil(";", tokens);
+
+                    instructions.AddRange(CompileExpression(expressionTokens));
+                }
+
+                var token = tokens.Pop();
+
                 instructions.Add(ToXmlElement(token));
+                lastTokenValue = token.Value;
             }
 
             instructions.Add("</letStatement>");
 
             return ("letStatement", instructions);
+        }
+
+        private Stack<Token> PopUntil(string targetTokenValue, Stack<Token> tokens)
+        {
+            IList<Token> expressionTokens = new List<Token>();
+
+            while (tokens.Peek().Value != targetTokenValue)
+            {
+                var token = tokens.Pop();
+
+                expressionTokens.Add(token);
+            }
+
+            return new Stack<Token>(expressionTokens.Reverse());
+        }
+
+        public Stack<Token> PopExpressionTokensBetweenBrackets(string openingBracket, string closingBracket, Stack<Token> tokens)
+        {
+            int currentOpenBrackets = 0;
+            IList<Token> expressionTokens = new List<Token>();
+
+            while (tokens.Peek().Value != closingBracket || currentOpenBrackets > 0)
+            {
+                var token = tokens.Pop();
+
+                if (token.Value == openingBracket)
+                {
+                    currentOpenBrackets++;
+                }
+                else if (token.Value == closingBracket)
+                {
+                    currentOpenBrackets--;
+                }
+
+                expressionTokens.Add(token);
+            }
+
+            return new Stack<Token>(expressionTokens.Reverse());
+        }
+
+        private IList<string> CompileExpressionList(Stack<Token> expressionTokens)
+        {
+            var instructions = new List<string>();
+
+            instructions.Add("<expressionList>");
+
+            instructions.Add("</expressionList>");
+
+            return instructions;
+        }
+
+        private IList<string> CompileExpression(Stack<Token> expressionTokens)
+        {
+            var instructions = new List<string>();
+
+            instructions.Add("<expression>");
+
+            while (expressionTokens.TryPop(out Token token))
+            {
+                if (token.TokenType == "symbol")
+                {
+                    instructions.Add(ToXmlElement(token));
+                }
+                else
+                {
+                    instructions.Add("<term>");
+                    instructions.Add(ToXmlElement(token));
+                    instructions.Add("</term>");
+                }
+            }
+            
+            instructions.Add("</expression>");
+
+            return instructions;
         }
 
         private (string ConstructType, IList<string> ConstructInstructions) CompileVarDec(Stack<Token> tokens)
@@ -218,10 +331,14 @@ namespace JackCompiler.Net
 
             instructions.Add("<varDec>");
 
-            var signature = tokens.Pop(4);
+            var lastTokenValue = string.Empty;
 
-            foreach (var token in signature)
+            while (lastTokenValue != ";")
             {
+                var token = tokens.Pop();
+
+                lastTokenValue = token.Value;
+
                 instructions.Add(ToXmlElement(token));
             }
 
@@ -409,6 +526,7 @@ namespace JackCompiler.Net
 
 //TODO: Implement Expressions
 // While statement is currently looking for first occurance of )
-// If statement is currently looking for first occurance of )
 
-    
+//TODO: Implement let with array accessor
+//TODO: ExpressionList for DoStatement
+//TODO: Implement let with expression after =
