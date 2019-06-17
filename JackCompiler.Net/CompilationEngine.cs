@@ -128,16 +128,20 @@ namespace JackCompiler.Net
             instructions.Add("<whileStatement>");
 
             var lastTokenValue = string.Empty;
-            var whileSignature = new List<Token>();
 
-            while (lastTokenValue != ")")
+            while (tokens.Peek().Value != "{")
             {
+                if (lastTokenValue == "(")
+                {
+                    var expressionTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+
+                    instructions.AddRange(CompileExpression(expressionTokens));
+                }
+
                 var token = tokens.Pop();
 
-                lastTokenValue = token.Value;
-
-                whileSignature.Add(token);
                 instructions.Add(ToXmlElement(token));
+                lastTokenValue = token.Value;
             }
 
             var bodyTokens = PopStatementBody(tokens);
@@ -201,9 +205,9 @@ namespace JackCompiler.Net
             {
                 if (lastTokenValue == "(")
                 {
-                    var expressionTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+                    var expressionList = PopExpressionTokensBetweenBrackets("(", ")", tokens);
 
-                    instructions.AddRange(CompileExpressionList(expressionTokens));
+                    instructions.AddRange(CompileExpressionList(expressionList));
                 }
 
                 var token = tokens.Pop();
@@ -255,7 +259,7 @@ namespace JackCompiler.Net
         {
             IList<Token> expressionTokens = new List<Token>();
 
-            while (tokens.Peek().Value != targetTokenValue)
+            while (tokens.TryPeek(out Token peekedToken) && peekedToken.Value != targetTokenValue)
             {
                 var token = tokens.Pop();
 
@@ -289,11 +293,49 @@ namespace JackCompiler.Net
             return new Stack<Token>(expressionTokens.Reverse());
         }
 
-        private IList<string> CompileExpressionList(Stack<Token> expressionTokens)
+        private IList<string> CompileExpressionList(Stack<Token> expressionList)
         {
             var instructions = new List<string>();
 
             instructions.Add("<expressionList>");
+
+            var expressions = new List<IList<Token>>();
+            var currentExpression = new List<Token>();
+
+            while (expressionList.TryPeek(out Token peekedToken))
+            {
+                //TODO: Determine if the comma is part of a inner subroutine
+                if (peekedToken.Value == ",")
+                {
+                    //pop comma, but it is not used
+                    expressionList.Pop();
+
+                    expressions.Add(currentExpression);
+                    currentExpression = new List<Token>();
+                }
+                else
+                {
+                    currentExpression.Add(expressionList.Pop());
+                }
+            }
+
+            if (currentExpression.Any())
+            {
+                expressions.Add(currentExpression);
+            }
+
+            for (int i = 0; i < expressions.Count ;i++)
+            {
+                var expression = expressions[i];
+
+                var expressionAsStack = new Stack<Token>(expression.Reverse());
+                instructions.AddRange(CompileExpression(expressionAsStack));
+
+                if (i < (expressions.Count - 1))
+                {
+                    instructions.Add(ToXmlElement(new Token { TokenType = TokenType.Symbol, Value = "," }));
+                }
+            }
 
             instructions.Add("</expressionList>");
 
@@ -308,15 +350,135 @@ namespace JackCompiler.Net
 
             while (expressionTokens.TryPop(out Token token))
             {
-                if (token.TokenType == "symbol")
-                {
-                    instructions.Add(ToXmlElement(token));
-                }
-                else
+                if (Regex.IsMatch(token.TokenType, $"({TokenType.IntegerConstant}|{TokenType.StringConstant}|{TokenType.Keyword})"))
                 {
                     instructions.Add("<term>");
                     instructions.Add(ToXmlElement(token));
                     instructions.Add("</term>");
+                }
+                else if (token.TokenType == TokenType.Symbol)
+                {
+                    if (token.Value == "(")
+                    {
+                        var termExpression = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
+
+                        instructions.Add("<term>");
+                        instructions.Add(ToXmlElement(token));
+
+                        instructions.AddRange(CompileExpression(termExpression));
+
+                        instructions.Add(ToXmlElement(expressionTokens.Pop()));
+                        instructions.Add("</term>");
+                    }
+                    else if (token.Value == "-")
+                    {
+                        var isOperator = instructions.Last() == "</term>";
+
+                        if (!isOperator)
+                        {
+                            instructions.Add("<term>"); //opening term for expression
+                        }
+
+                        instructions.Add(ToXmlElement(token));
+                        //following tokens can be a term
+                        //will assume integerConstant for now
+                        var integerConstantTerm = expressionTokens.Pop();
+
+                        instructions.Add("<term>");
+                        instructions.Add(ToXmlElement(integerConstantTerm));
+                        instructions.Add("</term>");
+
+                        if (!isOperator)
+                        {
+                            instructions.Add("</term>"); //closing term for expression
+                        }
+                    }
+                    else if (token.Value == "~")
+                    {
+                        instructions.Add("<term>"); //opening term for expression
+
+                        instructions.Add(ToXmlElement(token));
+                        //following tokens can be a term
+                        //will assume integerConstant for now
+                        //var integerConstantTerm = expressionTokens.Pop();
+
+                        instructions.Add("<term>");
+
+                        if (expressionTokens.TryPeek(out Token peekedToken) && peekedToken.Value == "(")
+                        {
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop opening bracket
+
+                            var innerExpressionTokens = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
+
+                            instructions.AddRange(CompileExpression(innerExpressionTokens));
+
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop closing bracket
+                        }
+                        else
+                        {
+                            var integerConstantTerm = expressionTokens.Pop();
+                            instructions.Add(ToXmlElement(integerConstantTerm));
+                        }
+                        
+                        instructions.Add("</term>");
+
+                        instructions.Add("</term>"); //closing term for expression
+                    }
+                    else //therefore the symbol is an operator
+                    {
+                        instructions.Add(ToXmlElement(token));
+                    }
+                }
+                else if (token.TokenType == TokenType.Identifier) //could be varName | varName[] | subroutineCall
+                {
+                    if (expressionTokens.TryPeek(out Token peekedToken) && Regex.IsMatch(peekedToken.Value, @"(\[|\.|\()"))
+                    {
+                        if (peekedToken.Value == "(")
+                        {
+                            instructions.Add("<term>");
+                            instructions.Add(ToXmlElement(token));
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop opening bracket
+
+                            var expressionList = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
+
+                            instructions.AddRange(CompileExpressionList(expressionList));
+
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop closing bracket
+                            instructions.Add("</term>");
+                        }
+                        else if (peekedToken.Value == "[")
+                        {
+                            instructions.Add("<term>");
+                            instructions.Add(ToXmlElement(token));
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); 
+
+                            var arrayExpression = PopExpressionTokensBetweenBrackets("[", "]", expressionTokens);
+                            instructions.AddRange(CompileExpression(arrayExpression));
+
+                            instructions.Add(ToXmlElement(expressionTokens.Pop()));
+                            instructions.Add("</term>");
+                        }
+                        else // therefore ".", for example varName|className.subroutineName()
+                        {
+                            instructions.Add("<term>");
+                            instructions.Add(ToXmlElement(token));
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop "."
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop subroutineName
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop opening bracket
+
+                            var expressionList = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
+                            instructions.AddRange(CompileExpressionList(expressionList));
+
+                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop closing bracket
+                            instructions.Add("</term>");
+                        }
+                    }
+                    else
+                    {
+                        instructions.Add("<term>");
+                        instructions.Add(ToXmlElement(token));
+                        instructions.Add("</term>");
+                    }
                 }
             }
             
@@ -357,11 +519,20 @@ namespace JackCompiler.Net
 
             while (lastTokenValue != ";")
             {
+                if (lastTokenValue == "return")
+                {
+                    var expressionTokens = PopUntil(";", tokens);
+
+                    if (expressionTokens.Count > 0)
+                    {
+                        instructions.AddRange(CompileExpression(expressionTokens));
+                    }
+                }
+
                 var token = tokens.Pop();
 
-                lastTokenValue = token.Value;
-
                 instructions.Add(ToXmlElement(token));
+                lastTokenValue = token.Value;
             }
 
             instructions.Add("</returnStatement>");
@@ -519,14 +690,7 @@ namespace JackCompiler.Net
 
         private string ToXmlElement(Token token)
         {
-            return $"<{token.TokenType}> {token.Value} </{token.TokenType}>";
+            return $"<{token.TokenType}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
         }
     }
 }
-
-//TODO: Implement Expressions
-// While statement is currently looking for first occurance of )
-
-//TODO: Implement let with array accessor
-//TODO: ExpressionList for DoStatement
-//TODO: Implement let with expression after =

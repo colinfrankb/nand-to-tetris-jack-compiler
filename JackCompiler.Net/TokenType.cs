@@ -4,12 +4,12 @@ using System.Text;
 
 namespace JackCompiler.Net
 {
-    public enum TokenType
+    public static class TokenType
     {
-        Keyword = 0,
-        Symbol = 1,
-        Identifier = 2,
-        StringConstant = 3,
-        IntegerConstant = 4
+        public const string Keyword = "keyword";
+        public const string Symbol = "symbol";
+        public const string Identifier = "identifier";
+        public const string StringConstant = "stringConstant";
+        public const string IntegerConstant = "integerConstant";
     }
 }

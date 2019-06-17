@@ -1,8 +1,20 @@
 {
   "profiles": {
-    "JackCompiler.Net": {
+    "CustomTest": {
       "commandName": "Project",
-      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\Test"
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\CustomTest"
+    },
+    "ExpressionLessSquare": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\ExpressionLessSquare\\Square.jack"
+    },
+    "ArrayTest": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\ArrayTest"
+    },
+    "Square": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\Square"
     }
   }
 }

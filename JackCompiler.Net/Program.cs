@@ -64,28 +64,13 @@ namespace JackCompiler.Net
             {
                 if (token != null)
                 {
-                    xml.AppendLine($"<{token.TokenType}> {EncodeTokenValue(token.Value)} </{token.TokenType}>");
+                    xml.AppendLine($"<{token.TokenType}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>");
                 }
             }
 
             xml.AppendLine("</tokens>");
 
             return xml.ToString();
-        }
-
-        private static string EncodeTokenValue(string tokenValue)
-        {
-            switch (tokenValue)
-            {
-                case ">":
-                    return "&gt;";
-                case "<":
-                    return "&lt;";
-                case "&":
-                    return "&amp;";
-                default:
-                    return tokenValue;
-            }
         }
     }
 }
