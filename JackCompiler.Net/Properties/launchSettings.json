@@ -2,7 +2,7 @@
   "profiles": {
     "CustomTest": {
       "commandName": "Project",
-      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\CustomTest"
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\CustomTest"
     },
     "ExpressionLessSquare": {
       "commandName": "Project",

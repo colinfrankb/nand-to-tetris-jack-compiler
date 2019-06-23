@@ -639,11 +639,18 @@ namespace JackCompiler.Net
             instructions.Add("<class>");
 
             var classSignature = tokens.Pop(3);
-            var indexOfClosingBracket = FindIndexOfClosingBracket(0, tokens);
 
             foreach (var token in classSignature)
             {
-                instructions.Add(ToXmlElement(token));
+                if (token.TokenType == TokenType.Identifier)
+                {
+                    instructions.Add(ToXmlElement(token, "class", null));
+                }
+                else
+                {
+                    instructions.Add(ToXmlElement(token));
+                }
+                
             }
 
             while (tokens.Count > 1)
@@ -691,6 +698,23 @@ namespace JackCompiler.Net
         private string ToXmlElement(Token token)
         {
             return $"<{token.TokenType}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
+        }
+
+        private string ToXmlElement(Token token, string category, string kind)
+        {
+            var openingTagContent = $"{token.TokenType}";
+
+            if (!string.IsNullOrEmpty(category))
+            {
+                openingTagContent += $" category=\"{category}\"";
+            }
+
+            if (!string.IsNullOrEmpty(kind))
+            {
+                openingTagContent += $" kind=\"{kind}\"";
+            }
+
+            return $"<{openingTagContent}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
         }
     }
 }
