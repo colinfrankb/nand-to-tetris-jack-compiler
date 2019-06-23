@@ -246,7 +246,7 @@ namespace JackCompiler.Net
 
                 var token = tokens.Pop();
 
-                instructions.Add(ToXmlElement(token));
+                instructions.Add(ToXmlElement(token, "let"));
                 lastTokenValue = token.Value;
             }
 
@@ -501,7 +501,7 @@ namespace JackCompiler.Net
 
                 lastTokenValue = token.Value;
 
-                instructions.Add(ToXmlElement(token));
+                instructions.Add(ToXmlElement(token, "var"));
             }
 
             instructions.Add("</varDec>");
@@ -575,7 +575,7 @@ namespace JackCompiler.Net
 
             foreach (var token in subroutineSignature)
             {
-                instructions.Add(ToXmlElement(token));
+                instructions.Add(ToXmlElement(token, "subroutine"));
             }
 
             foreach (var token in parameterList)
@@ -642,15 +642,7 @@ namespace JackCompiler.Net
 
             foreach (var token in classSignature)
             {
-                if (token.TokenType == TokenType.Identifier)
-                {
-                    instructions.Add(ToXmlElement(token, "class", null));
-                }
-                else
-                {
-                    instructions.Add(ToXmlElement(token));
-                }
-                
+                instructions.Add(ToXmlElement(token, "class"));
             }
 
             while (tokens.Count > 1)
@@ -700,18 +692,23 @@ namespace JackCompiler.Net
             return $"<{token.TokenType}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
         }
 
-        private string ToXmlElement(Token token, string category, string kind)
+        private string ToXmlElement(Token token, string callingConstruct)
         {
             var openingTagContent = $"{token.TokenType}";
 
-            if (!string.IsNullOrEmpty(category))
+            if(token.TokenType == TokenType.Identifier)
             {
-                openingTagContent += $" category=\"{category}\"";
-            }
+                if (!string.IsNullOrEmpty(callingConstruct))
+                {
+                    openingTagContent += $" category=\"{callingConstruct}\"";
+                }
 
-            if (!string.IsNullOrEmpty(kind))
-            {
-                openingTagContent += $" kind=\"{kind}\"";
+                if (!string.IsNullOrEmpty(callingConstruct) && Regex.IsMatch(callingConstruct, "(field|static|argument|var|let|expression)"))
+                {
+                    var isBeingDefined = Regex.IsMatch(callingConstruct, "(field|static|var)"); //else is being referenced
+                    
+                    openingTagContent += $" kind=\"{callingConstruct.Replace("let", "var")}\" isBeingDefined=\"{isBeingDefined}\"";
+                }
             }
 
             return $"<{openingTagContent}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
