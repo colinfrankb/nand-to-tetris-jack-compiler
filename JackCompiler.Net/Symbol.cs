@@ -10,5 +10,15 @@ namespace JackCompiler.Net
         public string Type { get; set; }
         public string Kind { get; set; }
         public int RunningIndex { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            return obj != null && obj is Symbol && ((Symbol)obj).Name == Name;
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
     }
 }
