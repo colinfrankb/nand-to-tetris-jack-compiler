@@ -11,6 +11,7 @@ namespace JackCompiler.Net
     {
         private readonly SymbolTable _symbolTable;
         private VMWriter _vmWriter;
+        private string _currentSubroutine;
 
         public CompilationEngine()
         {
@@ -385,6 +386,8 @@ namespace JackCompiler.Net
 
                         instructions.AddRange(CompileExpression(termExpression));
 
+                        expressionTokens.Pop(); // pop closing bracket
+
                         instructions.Add("</term>");
                     }
                     else if (token.Value == "-")
@@ -507,21 +510,32 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileVarDec(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            instructions.Add("<varDec>");
-
+            var currentIndex = -1;
+            var identifierType = string.Empty;
+            var identifierName = string.Empty;
             var lastTokenValue = string.Empty;
 
             while (lastTokenValue != ";")
             {
+                currentIndex++;
                 var token = tokens.Pop();
 
-                lastTokenValue = token.Value;
+                if (currentIndex == 1)
+                {
+                    identifierType = token.Value;
+                }
+                else if (currentIndex == 2)
+                {
+                    identifierName = token.Value;
+                }
 
-                instructions.Add(ToXmlElement(token, "var"));
+                lastTokenValue = token.Value;
             }
 
-            instructions.Add("</varDec>");
+            var runningIndex = _symbolTable.DefineIdentifier(identifierName, identifierType, "var");
+
+            instructions.AddRange(_vmWriter.WritePush("constant", 0));
+            instructions.AddRange(_vmWriter.WritePop("local", runningIndex));
 
             return ("varDec", instructions);
         }
@@ -530,7 +544,10 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
 
-            instructions.Add("<returnStatement>");
+            if (_currentSubroutine == "main")
+            {
+                instructions.AddRange(_vmWriter.WritePush("constant", 0));
+            }
 
             var lastTokenValue = string.Empty;
 
@@ -548,11 +565,10 @@ namespace JackCompiler.Net
 
                 var token = tokens.Pop();
 
-                instructions.Add(ToXmlElement(token));
                 lastTokenValue = token.Value;
             }
 
-            instructions.Add("</returnStatement>");
+            instructions.Add("return");
 
             return ("returnStatement", instructions);
         }
@@ -590,6 +606,8 @@ namespace JackCompiler.Net
             var parameterList = tokens.PopParameterList();
             var indexOfClosingBracket = FindIndexOfClosingBracket(0, tokens);
             var numberOfRemainingTokensAfterSubroutine = tokens.Count - (indexOfClosingBracket + 1);
+
+            _currentSubroutine = subroutineName;
             
             //foreach (var token in subroutineSignature)
             //{
@@ -648,12 +666,8 @@ namespace JackCompiler.Net
             //instructions.Add("</subroutineDec>");
 
             instructions.AddRange(_vmWriter.WriteFunction(subroutineName, varDeclarations.Count(x => x == "<varDec>")));
+            instructions.AddRange(varDeclarations);
             instructions.AddRange(statementDeclarations);
-
-            if (subroutineName == "main")
-            {
-                instructions.AddRange(_vmWriter.WritePush("constant", 0));
-            }
 
             return ("subroutineDec", instructions);
         }

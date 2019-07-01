@@ -1,9 +1,5 @@
 {
   "profiles": {
-    "CustomTest": {
-      "commandName": "Project",
-      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\CustomTest"
-    },
     "ExpressionLessSquare": {
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\ExpressionLessSquare\\Square.jack"
@@ -15,6 +11,14 @@
     "Square": {
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\Square"
+    },
+    "Seven": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\Seven"
+    },
+    "ConvertToBin": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\CustomTest"
     }
   }
 }

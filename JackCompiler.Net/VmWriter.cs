@@ -37,10 +37,17 @@ namespace JackCompiler.Net
 
         public IList<string> WriteCall(string functionName, int nArgs)
         {
-            return new List<string>
+            var instructions =  new List<string>
             {
                 $"call {functionName} {nArgs}"
             };
+
+            if (functionName.Contains("Output."))
+            {
+                instructions.AddRange(WritePop("temp", 0));
+            }
+
+            return instructions;
         }
 
         public IList<string> WriteExpression(XmlNode expressionTree)
@@ -114,11 +121,31 @@ namespace JackCompiler.Net
             return termNode.FirstChild.Name == TokenType.IntegerConstant;
         }
 
-        public IList<string> WritePush(string segment, int index) // CONST|ARG|LOCAL|STATIC|THIS|THAT|POINTER|TEMP
+        /// <summary>
+        /// Push onto the global stack from a virtual memory segment
+        /// </summary>
+        /// <param name="segment">One of [const|arg|local|static|this|that|pointer|temp]</param>
+        /// <param name="index"></param>
+        /// <returns></returns>
+        public IList<string> WritePush(string segment, int index) 
         {
             return new List<string>
             {
                 $"push {segment} {index}"
+            };
+        }
+
+        /// <summary>
+        /// Pop from the global stack onto a virtual memory segment
+        /// </summary>
+        /// <param name="segment">One of [const|arg|local|static|this|that|pointer|temp]</param>
+        /// <param name="index"></param>
+        /// <returns></returns>
+        public IList<string> WritePop(string segment, int index) // CONST|ARG|LOCAL|STATIC|THIS|THAT|POINTER|TEMP
+        {
+            return new List<string>
+            {
+                $"pop {segment} {index}"
             };
         }
     }
