@@ -19,6 +19,17 @@ namespace JackCompiler.Net
             {
                 assemblyProgramFilePathWithoutExtension = $"{args[0]}\\{args[0].Split("\\").Last()}";
                 filePaths.AddRange(Directory.GetFiles(args[0], "*.jack"));
+
+                using (var file = File.OpenWrite($"{args[0]}\\Sys.vm"))
+                {
+                    using (var streamWriter = new StreamWriter(file))
+                    {
+                        streamWriter.WriteLine("function Sys.init 0");
+                        streamWriter.WriteLine("call Main.main 0");
+                        streamWriter.WriteLine("label WHILE");
+                        streamWriter.WriteLine("goto WHILE");
+                    }
+                }
             }
             else
             {
@@ -39,7 +50,7 @@ namespace JackCompiler.Net
                 string directoryPath = Path.GetDirectoryName(filePath);
                 string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
                 string outputTokensFilePath = $"{directoryPath}\\{fileNameWithoutExtension}T.mine.xml";
-                string outputLanguageConstructsFilePath = $"{directoryPath}\\{fileNameWithoutExtension}.mine.xml";
+                string outputLanguageConstructsFilePath = $"{directoryPath}\\{fileNameWithoutExtension}.vm";
 
                 Console.WriteLine($"{outputTokensFilePath}");
                 Console.WriteLine($"{outputLanguageConstructsFilePath}");

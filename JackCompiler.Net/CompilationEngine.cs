@@ -3,18 +3,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace JackCompiler.Net
 {
     public class CompilationEngine
     {
+        private readonly SymbolTable _symbolTable;
+        private VMWriter _vmWriter;
+
+        public CompilationEngine()
+        {
+            _symbolTable = new SymbolTable();
+        }
+
         public IList<string> Compile(IEnumerable<Token> tokens)
         {
             var tokenStack = new Stack<Token>(tokens.Reverse());
 
             var instructions = new List<string>();
 
-            var construct = CompileNextToken(tokenStack);
+            var construct = CompileClass(tokenStack);
 
             instructions.AddRange(construct.ConstructInstructions);
 
@@ -196,27 +205,37 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileDo(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            instructions.Add("<doStatement>");
-
             var lastTokenValue = string.Empty;
+            var functionName = string.Empty;
+            var expressionList = new List<string>();
 
             while (lastTokenValue != ";")
             {
                 if (lastTokenValue == "(")
                 {
-                    var expressionList = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+                    var expressionListTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
 
-                    instructions.AddRange(CompileExpressionList(expressionList));
+                    expressionList.AddRange(CompileExpressionList(expressionListTokens));
                 }
 
                 var token = tokens.Pop();
 
-                instructions.Add(ToXmlElement(token));
+                if (token.TokenType == TokenType.Identifier || token.Value == ".")
+                {
+                    functionName += token.Value;
+                }
+                
                 lastTokenValue = token.Value;
             }
 
-            instructions.Add("</doStatement>");
+            var expressionTreeList = ExpressionTree.ConvertToXmlDocument(expressionList);
+
+            foreach (XmlNode expressionTree in expressionTreeList.FirstChild.ChildNodes)
+            {
+                instructions.AddRange(_vmWriter.WriteExpression(expressionTree));
+            }
+
+            instructions.AddRange(_vmWriter.WriteCall(functionName, expressionTreeList.ChildNodes.Count));
 
             return ("doStatement", instructions);
         }
@@ -363,11 +382,9 @@ namespace JackCompiler.Net
                         var termExpression = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
 
                         instructions.Add("<term>");
-                        instructions.Add(ToXmlElement(token));
 
                         instructions.AddRange(CompileExpression(termExpression));
 
-                        instructions.Add(ToXmlElement(expressionTokens.Pop()));
                         instructions.Add("</term>");
                     }
                     else if (token.Value == "-")
@@ -406,13 +423,13 @@ namespace JackCompiler.Net
 
                         if (expressionTokens.TryPeek(out Token peekedToken) && peekedToken.Value == "(")
                         {
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop opening bracket
+                            expressionTokens.Pop(); // pop opening bracket
 
                             var innerExpressionTokens = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
 
                             instructions.AddRange(CompileExpression(innerExpressionTokens));
 
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop closing bracket
+                            expressionTokens.Pop(); // pop closing bracket
                         }
                         else
                         {
@@ -437,13 +454,13 @@ namespace JackCompiler.Net
                         {
                             instructions.Add("<term>");
                             instructions.Add(ToXmlElement(token));
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop opening bracket
+                            expressionTokens.Pop(); // pop opening bracket
 
                             var expressionList = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
 
                             instructions.AddRange(CompileExpressionList(expressionList));
 
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop closing bracket
+                            expressionTokens.Pop(); // pop closing bracket
                             instructions.Add("</term>");
                         }
                         else if (peekedToken.Value == "[")
@@ -464,12 +481,12 @@ namespace JackCompiler.Net
                             instructions.Add(ToXmlElement(token));
                             instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop "."
                             instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop subroutineName
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop opening bracket
+                            expressionTokens.Pop(); // pop opening bracket
 
                             var expressionList = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
                             instructions.AddRange(CompileExpressionList(expressionList));
 
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop closing bracket
+                            expressionTokens.Pop(); // pop closing bracket
                             instructions.Add("</term>");
                         }
                     }
@@ -566,34 +583,35 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
 
-            instructions.Add("<subroutineDec>");
+            //instructions.Add("<subroutineDec>");
 
             var subroutineSignature = tokens.Pop(3);
+            var subroutineName = subroutineSignature.First(x => x.TokenType == TokenType.Identifier).Value;
             var parameterList = tokens.PopParameterList();
             var indexOfClosingBracket = FindIndexOfClosingBracket(0, tokens);
             var numberOfRemainingTokensAfterSubroutine = tokens.Count - (indexOfClosingBracket + 1);
+            
+            //foreach (var token in subroutineSignature)
+            //{
+            //    instructions.Add(ToXmlElement(token, "subroutine"));
+            //}
 
-            foreach (var token in subroutineSignature)
-            {
-                instructions.Add(ToXmlElement(token, "subroutine"));
-            }
+            //foreach (var token in parameterList)
+            //{
+            //    if (token.Value == ")")
+            //        instructions.Add("</parameterList>");
 
-            foreach (var token in parameterList)
-            {
-                if (token.Value == ")")
-                    instructions.Add("</parameterList>");
+            //    instructions.Add(ToXmlElement(token));
 
-                instructions.Add(ToXmlElement(token));
+            //    if (token.Value == "(")
+            //        instructions.Add("<parameterList>");
+            //}
 
-                if (token.Value == "(")
-                    instructions.Add("<parameterList>");
-            }
-
-            instructions.Add("<subroutineBody>");
+            //instructions.Add("<subroutineBody>");
 
             var openingBracketToken = tokens.Pop();
 
-            instructions.Add(ToXmlElement(openingBracketToken));
+            //instructions.Add(ToXmlElement(openingBracketToken));
 
             var varDeclarations = new List<string>();
             var statementDeclarations = new List<string>();
@@ -615,19 +633,27 @@ namespace JackCompiler.Net
                 }
             }
 
-            instructions.AddRange(varDeclarations);
+            //instructions.AddRange(varDeclarations);
 
-            instructions.Add("<statements>");
-            instructions.AddRange(statementDeclarations);
-            instructions.Add("</statements>");
+            //instructions.Add("<statements>");
+            //instructions.AddRange(statementDeclarations);
+            //instructions.Add("</statements>");
 
             var closingBracketToken = tokens.Pop();
 
-            instructions.Add(ToXmlElement(closingBracketToken));
+            //instructions.Add(ToXmlElement(closingBracketToken));
 
-            instructions.Add("</subroutineBody>");
+            //instructions.Add("</subroutineBody>");
 
-            instructions.Add("</subroutineDec>");
+            //instructions.Add("</subroutineDec>");
+
+            instructions.AddRange(_vmWriter.WriteFunction(subroutineName, varDeclarations.Count(x => x == "<varDec>")));
+            instructions.AddRange(statementDeclarations);
+
+            if (subroutineName == "main")
+            {
+                instructions.AddRange(_vmWriter.WritePush("constant", 0));
+            }
 
             return ("subroutineDec", instructions);
         }
@@ -635,15 +661,10 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileClass(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            instructions.Add("<class>");
-
             var classSignature = tokens.Pop(3);
+            var className = classSignature.First(x => x.TokenType == TokenType.Identifier).Value;
 
-            foreach (var token in classSignature)
-            {
-                instructions.Add(ToXmlElement(token, "class"));
-            }
+            _vmWriter = new VMWriter(className);
 
             while (tokens.Count > 1)
             {
@@ -653,10 +674,6 @@ namespace JackCompiler.Net
             }
 
             var lastToken = tokens.Pop();
-
-            instructions.Add(ToXmlElement(lastToken));
-
-            instructions.Add("</class>");
 
             return ("class", instructions);
         }
@@ -708,6 +725,13 @@ namespace JackCompiler.Net
                     var isBeingDefined = Regex.IsMatch(callingConstruct, "(field|static|var)"); //else is being referenced
                     
                     openingTagContent += $" kind=\"{callingConstruct.Replace("let", "var")}\" isBeingDefined=\"{isBeingDefined}\"";
+                }
+
+                if (!string.IsNullOrEmpty(callingConstruct) && Regex.IsMatch(callingConstruct, "(field|static|argument|var)"))
+                {
+                    var runningIndex = _symbolTable.DefineIdentifier(token.Value, "", callingConstruct);
+
+                    openingTagContent += $" runningIndex=\"{runningIndex}\"";
                 }
             }
 

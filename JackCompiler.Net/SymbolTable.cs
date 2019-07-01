@@ -18,26 +18,36 @@ namespace JackCompiler.Net
             _subroutineScopeIdentifiers = new List<Symbol>();
         }
 
-        public void DefineIdentifier(string name, string type, string kind)
+        public int DefineIdentifier(string name, string type, string kind)
         {
-            if (Regex.IsMatch(kind, "(static|field)"))
+            var index = -1;
+            var symbol = new Symbol
             {
-                _classScopeIdentifiers.Add(new Symbol
+                Name = name,
+                Type = type,
+                Kind = kind
+            };
+
+            if (Regex.IsMatch(symbol.Kind, "(static|field)"))
+            {
+                if(!_classScopeIdentifiers.Contains(symbol))
                 {
-                    Name = name,
-                    Type = type,
-                    Kind = kind
-                });
+                    _classScopeIdentifiers.Add(symbol);
+
+                    index = _classScopeIdentifiers.IndexOf(symbol);
+                }
             }
             else // kind is (var|argument)
             {
-                _subroutineScopeIdentifiers.Add(new Symbol
+                if (!_subroutineScopeIdentifiers.Contains(symbol))
                 {
-                    Name = name,
-                    Type = type,
-                    Kind = kind
-                });
+                    _subroutineScopeIdentifiers.Add(symbol);
+
+                    index = _subroutineScopeIdentifiers.IndexOf(symbol);
+                }
             }
+
+            return index;
         }
 
         public int IndexOf(string name)
