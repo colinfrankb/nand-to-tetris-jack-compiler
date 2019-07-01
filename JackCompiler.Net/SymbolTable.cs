@@ -61,5 +61,12 @@ namespace JackCompiler.Net
 
             return indexInSubroutineScopeIdentifiers > -1 ? indexInSubroutineScopeIdentifiers : _classScopeIdentifiers.IndexOf(symbol);
         }
+
+        public Symbol GetSymbolByName(string identifierName)
+        {
+            var symbol = _subroutineScopeIdentifiers.FirstOrDefault(x => x.Name == identifierName);
+
+            return symbol ?? _classScopeIdentifiers.FirstOrDefault(x => x.Name == identifierName);
+        }
     }
 }

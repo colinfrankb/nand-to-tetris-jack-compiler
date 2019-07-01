@@ -244,13 +244,15 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileLet(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            instructions.Add("<letStatement>");
-
+            var identifierName = string.Empty;
+            var currentIndex = -1;
             var lastTokenValue = string.Empty;
+            var valueExpression = new List<string>();
 
             while (lastTokenValue != ";")
             {
+                currentIndex++;
+
                 if (lastTokenValue == "[")
                 {
                     var expressionTokens = PopExpressionTokensBetweenBrackets("[", "]", tokens);
@@ -261,16 +263,33 @@ namespace JackCompiler.Net
                 {
                     var expressionTokens = PopUntil(";", tokens);
 
-                    instructions.AddRange(CompileExpression(expressionTokens));
+                    valueExpression.AddRange(CompileExpression(expressionTokens));
                 }
 
                 var token = tokens.Pop();
 
-                instructions.Add(ToXmlElement(token, "let"));
+                if (currentIndex == 1)
+                {
+                    identifierName = token.Value;
+                }
+
                 lastTokenValue = token.Value;
             }
 
-            instructions.Add("</letStatement>");
+            var valueExpressionTree = ExpressionTree.ConvertToXmlDocument(valueExpression).FirstChild;
+
+            instructions.AddRange(_vmWriter.WriteExpression(valueExpressionTree));
+
+            var symbol = _symbolTable.GetSymbolByName(identifierName);
+
+            //TODO: Set an int
+            //TODO: Set a string
+            //TODO: Set an object
+            //TODO: Set a field of an object
+
+
+            instructions.AddRange(_vmWriter.WritePop(symbol.ToSegment(), symbol.RunningIndex));
+
 
             return ("letStatement", instructions);
         }
@@ -534,8 +553,8 @@ namespace JackCompiler.Net
 
             var runningIndex = _symbolTable.DefineIdentifier(identifierName, identifierType, "var");
 
-            instructions.AddRange(_vmWriter.WritePush("constant", 0));
-            instructions.AddRange(_vmWriter.WritePop("local", runningIndex));
+            //TODO: Determine the memory that needs to be allocated, for example when the type of the identifier
+            //is an Object or a string
 
             return ("varDec", instructions);
         }
