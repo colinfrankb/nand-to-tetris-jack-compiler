@@ -63,9 +63,7 @@ namespace JackCompiler.Net
 
         public int IndexOf(string name)
         {
-            var symbol = _subroutineScopeIdentifiers.FirstOrDefault(x => x.Name == name) ?? _classScopeIdentifiers.FirstOrDefault(x => x.Name == name);
-
-            return symbol?.RunningIndex ?? -1;
+            return GetSymbolByName(name)?.RunningIndex ?? -1;
         }
 
         public Symbol GetSymbolByName(string identifierName)
