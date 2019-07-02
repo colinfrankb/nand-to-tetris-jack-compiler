@@ -20,7 +20,6 @@ namespace JackCompiler.Net
 
         public int DefineIdentifier(string name, string type, string kind)
         {
-            var index = -1;
             var symbol = new Symbol
             {
                 Name = name,
@@ -32,34 +31,41 @@ namespace JackCompiler.Net
             {
                 if(!_classScopeIdentifiers.Contains(symbol))
                 {
-                    _classScopeIdentifiers.Add(symbol);
+                    symbol.RunningIndex = GetNextRunningIndex(_classScopeIdentifiers, symbol.Kind);
 
-                    index = _classScopeIdentifiers.IndexOf(symbol);
+                    _classScopeIdentifiers.Add(symbol);
                 }
             }
             else // kind is (var|argument)
             {
                 if (!_subroutineScopeIdentifiers.Contains(symbol))
                 {
-                    _subroutineScopeIdentifiers.Add(symbol);
+                    symbol.RunningIndex = GetNextRunningIndex(_subroutineScopeIdentifiers, symbol.Kind);
 
-                    index = _subroutineScopeIdentifiers.IndexOf(symbol);
+                    _subroutineScopeIdentifiers.Add(symbol);
                 }
             }
 
-            return index;
+            return symbol.RunningIndex;
+        }
+
+        private int GetNextRunningIndex(IList<Symbol> scopeIdentifiers, string kind)
+        {
+            var currentRunningIndex = scopeIdentifiers
+                .Where(x => x.Kind == kind)
+                .OrderByDescending(x => x.RunningIndex)
+                .FirstOrDefault()?.RunningIndex ?? -1;
+
+            currentRunningIndex++;
+
+            return currentRunningIndex;
         }
 
         public int IndexOf(string name)
         {
-            var symbol = new Symbol
-            {
-                Name = name
-            };
+            var symbol = _subroutineScopeIdentifiers.FirstOrDefault(x => x.Name == name) ?? _classScopeIdentifiers.FirstOrDefault(x => x.Name == name);
 
-            var indexInSubroutineScopeIdentifiers = _subroutineScopeIdentifiers.IndexOf(symbol);
-
-            return indexInSubroutineScopeIdentifiers > -1 ? indexInSubroutineScopeIdentifiers : _classScopeIdentifiers.IndexOf(symbol);
+            return symbol?.RunningIndex ?? -1;
         }
 
         public Symbol GetSymbolByName(string identifierName)
