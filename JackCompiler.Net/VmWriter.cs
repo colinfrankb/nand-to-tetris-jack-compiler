@@ -102,13 +102,40 @@ namespace JackCompiler.Net
             {
                 instructions.AddRange(WriteExpression(termNode.FirstChild));
             }
+            else if (IsArithmeticNegation(termNode))
+            {
+                instructions.AddRange(WriteTerm(termNode.ChildNodes.Item(1)));
+                instructions.Add("neg");
+            }
+            else if (IsSubroutineCall(termNode))
+            {
+                var subroutineName = termNode.FirstChild.InnerText;
+                var expressionTreeList = termNode.ChildNodes[1];
+
+                foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
+                {
+                    instructions.AddRange(WriteExpression(expressionTree));
+                }
+
+                instructions.AddRange(WriteCall(subroutineName, 0));
+            }
 
             return instructions;
+        }
+
+        private bool IsSubroutineCall(XmlNode termNode)
+        {
+            return termNode.Attributes["kind"].Value == "subroutineCall";
         }
 
         private bool IsExpression(XmlNode termNode)
         {
             return termNode.FirstChild.Name == "expression";
+        }
+
+        private bool IsArithmeticNegation(XmlNode termNode)
+        {
+            return termNode.FirstChild.Name == "symbol";
         }
 
         private int GetIntegerValue(XmlNode termNode)

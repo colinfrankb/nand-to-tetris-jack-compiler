@@ -229,14 +229,14 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
-            var expressionTreeList = ExpressionTree.ConvertToXmlDocument(expressionList);
+            var expressionTreeList = ExpressionTree.ConvertToXmlDocument(expressionList).FirstChild; // The root is a XmlDocument
 
-            foreach (XmlNode expressionTree in expressionTreeList.FirstChild.ChildNodes)
+            foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
             {
                 instructions.AddRange(_vmWriter.WriteExpression(expressionTree));
             }
 
-            instructions.AddRange(_vmWriter.WriteCall(functionName, expressionTreeList.ChildNodes.Count));
+            instructions.AddRange(_vmWriter.WriteCall(functionName, expressionTreeList.FirstChild.ChildNodes.Count));
 
             return ("doStatement", instructions);
         }
@@ -369,11 +369,6 @@ namespace JackCompiler.Net
 
                 var expressionAsStack = new Stack<Token>(expression.Reverse());
                 instructions.AddRange(CompileExpression(expressionAsStack));
-
-                if (i < (expressions.Count - 1))
-                {
-                    instructions.Add(ToXmlElement(new Token { TokenType = TokenType.Symbol, Value = "," }));
-                }
             }
 
             instructions.Add("</expressionList>");
@@ -497,12 +492,13 @@ namespace JackCompiler.Net
                             instructions.Add(ToXmlElement(expressionTokens.Pop()));
                             instructions.Add("</term>");
                         }
-                        else // therefore ".", for example varName|className.subroutineName()
+                        else // therefore ".", for example [varName|className].subroutineName()
                         {
-                            instructions.Add("<term>");
-                            instructions.Add(ToXmlElement(token));
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop "."
-                            instructions.Add(ToXmlElement(expressionTokens.Pop())); // pop subroutineName
+                            instructions.Add("<term kind=\"subroutineCall\">");
+                            var subroutine = token.Value;
+                            subroutine += expressionTokens.Pop().Value; // pop "."
+                            subroutine += expressionTokens.Pop().Value; // pop subroutineName
+                            instructions.Add(ToXmlElement("subroutine", subroutine));
                             expressionTokens.Pop(); // pop opening bracket
 
                             var expressionList = PopExpressionTokensBetweenBrackets("(", ")", expressionTokens);
@@ -739,7 +735,12 @@ namespace JackCompiler.Net
 
         private string ToXmlElement(Token token)
         {
-            return $"<{token.TokenType}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
+            return $"<{token.TokenType}>{XmlEncoder.EncodeTokenValue(token.Value)}</{token.TokenType}>";
+        }
+
+        private string ToXmlElement(string name, string value)
+        {
+            return $"<{name}>{XmlEncoder.EncodeTokenValue(value)}</{name}>";
         }
 
         private string ToXmlElement(Token token, string callingConstruct)
