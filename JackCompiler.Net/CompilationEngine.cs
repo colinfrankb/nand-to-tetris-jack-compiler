@@ -135,7 +135,7 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
 
-            instructions.Add("<whileStatement>");
+            instructions.AddRange(_vmWriter.WriteLabel("L1"));
 
             var lastTokenValue = string.Empty;
 
@@ -144,13 +144,15 @@ namespace JackCompiler.Net
                 if (lastTokenValue == "(")
                 {
                     var expressionTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+                    var expression = CompileExpression(expressionTokens);
+                    var expressionTree = ExpressionTree.ConvertToXmlDocument(expression).FirstChild;
 
-                    instructions.AddRange(CompileExpression(expressionTokens));
+                    instructions.AddRange(_vmWriter.WriteExpression(expressionTree, _symbolTable));
+                    instructions.AddRange(_vmWriter.WriteIf("L2"));
                 }
 
                 var token = tokens.Pop();
-
-                instructions.Add(ToXmlElement(token));
+                
                 lastTokenValue = token.Value;
             }
 
@@ -158,7 +160,8 @@ namespace JackCompiler.Net
 
             AddStatements(instructions, bodyTokens);
 
-            instructions.Add("</whileStatement>");
+            instructions.AddRange(_vmWriter.WriteLabel("L1"));
+            instructions.AddRange(_vmWriter.WriteLabel("L2"));
 
             return ("whileStatement", instructions);
         }
@@ -233,7 +236,7 @@ namespace JackCompiler.Net
 
             foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
             {
-                instructions.AddRange(_vmWriter.WriteExpression(expressionTree));
+                instructions.AddRange(_vmWriter.WriteExpression(expressionTree, _symbolTable));
             }
 
             instructions.AddRange(_vmWriter.WriteCall(functionName, expressionTreeList.FirstChild.ChildNodes.Count));
@@ -278,7 +281,7 @@ namespace JackCompiler.Net
 
             var valueExpressionTree = ExpressionTree.ConvertToXmlDocument(valueExpression).FirstChild;
 
-            instructions.AddRange(_vmWriter.WriteExpression(valueExpressionTree));
+            instructions.AddRange(_vmWriter.WriteExpression(valueExpressionTree, _symbolTable));
 
             var symbol = _symbolTable.GetSymbolByName(identifierName);
 
@@ -510,7 +513,7 @@ namespace JackCompiler.Net
                     }
                     else
                     {
-                        instructions.Add("<term>");
+                        instructions.Add("<term kind=\"variable\">");
                         instructions.Add(ToXmlElement(token));
                         instructions.Add("</term>");
                     }

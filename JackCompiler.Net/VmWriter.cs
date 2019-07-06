@@ -5,26 +5,11 @@ using System.Xml;
 
 namespace JackCompiler.Net
 {
-    public class VMWriter
+    public class VMWriter : VmWriterBase
     {
-        private readonly string _className;
-        private IDictionary<string, string> _arithmeticDictionary = new Dictionary<string, string>
-        {
-            { "+", "add" },
-            { "-", "sub" },
-            { "*", "call Math.multiply 2" },
-            { "/", "call Math.divide 2" },
-            { "~", "neg" },
-            { "=", "eq" },
-            { ">", "gt" },
-            { "<", "lt" },
-            { "&", "and" },
-            { "|", "or" }
-        };
-
         public VMWriter(string className)
+            : base(className)
         {
-            _className = className;
         }
 
         public IList<string> WriteFunction(string functionName, int nLocals)
@@ -50,7 +35,7 @@ namespace JackCompiler.Net
             return instructions;
         }
 
-        public IList<string> WriteExpression(XmlNode expressionTree)
+        public IList<string> WriteExpression(XmlNode expressionTree, SymbolTable symbolTable)
         {
             var instructions = new List<string>();
 
@@ -60,7 +45,7 @@ namespace JackCompiler.Net
                 {
                     var termNode = expressionTree.ChildNodes[i];
 
-                    instructions.AddRange(WriteTerm(termNode));
+                    instructions.AddRange(WriteTerm(termNode, symbolTable));
 
                     i++;
 
@@ -72,7 +57,7 @@ namespace JackCompiler.Net
                     var operatorNode = expressionTree.ChildNodes[i];
                     var nextTermNode = expressionTree.ChildNodes[i + 1];
 
-                    instructions.AddRange(WriteTerm(nextTermNode));
+                    instructions.AddRange(WriteTerm(nextTermNode, symbolTable));
                     instructions.Add(WriteArithmetic(operatorNode));
 
                     i += 2;
@@ -83,12 +68,7 @@ namespace JackCompiler.Net
             return instructions;
         }
 
-        private string WriteArithmetic(XmlNode operatorNode)
-        {
-            return _arithmeticDictionary[operatorNode.InnerText.Trim()];
-        }
-
-        private IList<string> WriteTerm(XmlNode termNode)
+        public IList<string> WriteTerm(XmlNode termNode, SymbolTable symbolTable)
         {
             var instructions = new List<string>();
 
@@ -100,11 +80,11 @@ namespace JackCompiler.Net
             }
             else if (IsExpression(termNode))
             {
-                instructions.AddRange(WriteExpression(termNode.FirstChild));
+                instructions.AddRange(WriteExpression(termNode.FirstChild, symbolTable));
             }
             else if (IsArithmeticNegation(termNode))
             {
-                instructions.AddRange(WriteTerm(termNode.ChildNodes.Item(1)));
+                instructions.AddRange(WriteTerm(termNode.ChildNodes.Item(1), symbolTable));
                 instructions.Add("neg");
             }
             else if (IsSubroutineCall(termNode))
@@ -114,38 +94,20 @@ namespace JackCompiler.Net
 
                 foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
                 {
-                    instructions.AddRange(WriteExpression(expressionTree));
+                    instructions.AddRange(WriteExpression(expressionTree, symbolTable));
                 }
 
                 instructions.AddRange(WriteCall(subroutineName, 0));
             }
+            else if (IsVariable(termNode))
+            {
+                var variableName = termNode.FirstChild.InnerText;
+                var symbol = symbolTable.GetSymbolByName(variableName);
+
+                instructions.AddRange(WritePush(symbol.ToSegment(), symbol.RunningIndex));
+            }
 
             return instructions;
-        }
-
-        private bool IsSubroutineCall(XmlNode termNode)
-        {
-            return termNode.Attributes["kind"].Value == "subroutineCall";
-        }
-
-        private bool IsExpression(XmlNode termNode)
-        {
-            return termNode.FirstChild.Name == "expression";
-        }
-
-        private bool IsArithmeticNegation(XmlNode termNode)
-        {
-            return termNode.FirstChild.Name == "symbol";
-        }
-
-        private int GetIntegerValue(XmlNode termNode)
-        {
-            return Convert.ToInt32(termNode.FirstChild.InnerText.Trim());
-        }
-
-        private bool IsInteger(XmlNode termNode)
-        {
-            return termNode.FirstChild.Name == TokenType.IntegerConstant;
         }
 
         /// <summary>
@@ -173,6 +135,30 @@ namespace JackCompiler.Net
             return new List<string>
             {
                 $"pop {segment} {index}"
+            };
+        }
+
+        public IList<string> WriteLabel(string labelName)
+        {
+            return new List<string>
+            {
+                $"label {labelName}"
+            };
+        }
+
+        public IList<string> WriteIf(string labelName)
+        {
+            return new List<string>
+            {
+                $"if-goto {labelName}"
+            };
+        }
+
+        public IList<string> WriteGoto(string labelName)
+        {
+            return new List<string>
+            {
+                $"goto {labelName}"
             };
         }
     }
