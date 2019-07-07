@@ -168,11 +168,7 @@ namespace JackCompiler.Net
 
         private void AddStatements(List<string> instructions, Stack<Token> bodyTokens)
         {
-            var openingBracketToken = bodyTokens.Pop();
-
-            instructions.Add(ToXmlElement(openingBracketToken));
-
-            instructions.Add("<statements>");
+            bodyTokens.Pop(); // pop opening bracket
 
             while (bodyTokens.Count > 1)
             {
@@ -181,11 +177,7 @@ namespace JackCompiler.Net
                 instructions.AddRange(constructInstructions);
             }
 
-            instructions.Add("</statements>");
-
-            var closingBracketToken = bodyTokens.Pop();
-
-            instructions.Add(ToXmlElement(closingBracketToken));
+            bodyTokens.Pop(); // pop closing bracket
         }
 
         private Stack<Token> PopStatementBody(Stack<Token> tokens)
