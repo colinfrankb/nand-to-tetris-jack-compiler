@@ -209,6 +209,9 @@ namespace JackCompiler.Net
             {
                 if (lastTokenValue == "(")
                 {
+                    // functionName only get assigned once the token stream reaches the opening ( bracket
+                    _symbolTable.StartSubroutine(functionName);
+
                     var expressionListTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
 
                     expressionList.AddRange(CompileExpressionList(expressionListTokens));
@@ -275,7 +278,7 @@ namespace JackCompiler.Net
 
             instructions.AddRange(_vmWriter.WriteExpression(valueExpressionTree, _symbolTable));
 
-            var symbol = _symbolTable.GetSymbolByName(identifierName);
+            var symbol = _symbolTable.GetSymbolByName(_currentSubroutine, identifierName);
 
             //TODO: Set an int
             //TODO: Set a string
@@ -505,7 +508,7 @@ namespace JackCompiler.Net
                     }
                     else
                     {
-                        instructions.Add("<term kind=\"variable\">");
+                        instructions.Add($"<term kind=\"variable\" subroutine=\"{_currentSubroutine}\">");
                         instructions.Add(ToXmlElement(token));
                         instructions.Add("</term>");
                     }
@@ -542,7 +545,7 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
-            var runningIndex = _symbolTable.DefineIdentifier(identifierName, identifierType, "var");
+            var runningIndex = _symbolTable.DefineIdentifier(_currentSubroutine, identifierName, identifierType, "var");
 
             //TODO: Determine the memory that needs to be allocated, for example when the type of the identifier
             //is an Object or a string
@@ -758,7 +761,7 @@ namespace JackCompiler.Net
 
                 if (!string.IsNullOrEmpty(callingConstruct) && Regex.IsMatch(callingConstruct, "(field|static|argument|var)"))
                 {
-                    var runningIndex = _symbolTable.DefineIdentifier(token.Value, "", callingConstruct);
+                    var runningIndex = _symbolTable.DefineIdentifier(callingConstruct, token.Value, "", callingConstruct);
 
                     openingTagContent += $" runningIndex=\"{runningIndex}\"";
                 }

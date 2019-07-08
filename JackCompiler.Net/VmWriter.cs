@@ -102,7 +102,8 @@ namespace JackCompiler.Net
             else if (IsVariable(termNode))
             {
                 var variableName = termNode.FirstChild.InnerText;
-                var symbol = symbolTable.GetSymbolByName(variableName);
+                var subroutineName = termNode.Attributes["subroutine"].Value;
+                var symbol = symbolTable.GetSymbolByName(subroutineName, variableName);
 
                 instructions.AddRange(WritePush(symbol.ToSegment(), symbol.RunningIndex));
             }
