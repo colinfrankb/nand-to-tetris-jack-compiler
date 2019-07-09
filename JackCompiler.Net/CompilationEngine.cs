@@ -137,9 +137,17 @@ namespace JackCompiler.Net
 
         private (string ConstructType, IList<string> ConstructInstructions) CompileWhile(Stack<Token> tokens)
         {
-            var instructions = new List<string>();
+            //label l1
+            //vm code for ~(expression)
+            //if-goto l2
+            //vm code for executing body of while
+            //goto l1
+            //label l2
 
-            instructions.AddRange(_vmWriter.WriteLabel("L1"));
+            var instructions = new List<string>();
+            var whileLoopRunningIndex = _symbolTable.GetNextWhileLoopRunningIndex();
+
+            instructions.AddRange(_vmWriter.WriteLabel($"WHILE_BEGIN{whileLoopRunningIndex}"));
 
             var lastTokenValue = string.Empty;
 
@@ -152,7 +160,13 @@ namespace JackCompiler.Net
                     var expressionTree = ExpressionTree.ConvertToXmlDocument(expression).FirstChild;
 
                     instructions.AddRange(WriteExpression(expressionTree));
-                    instructions.AddRange(_vmWriter.WriteIf("L2"));
+
+                    //the true evaluation has to be on the bitwise negation of the result of the expression
+                    //because instructions in this VM and assembly code execute from top to bottom
+                    //i.e if not goto end of while loop
+                    instructions.Add("not");
+
+                    instructions.AddRange(_vmWriter.WriteIf($"WHILE_END{whileLoopRunningIndex}"));
                 }
 
                 var token = tokens.Pop();
@@ -164,8 +178,8 @@ namespace JackCompiler.Net
 
             AddStatements(instructions, bodyTokens);
 
-            instructions.AddRange(_vmWriter.WriteLabel("L1"));
-            instructions.AddRange(_vmWriter.WriteLabel("L2"));
+            instructions.AddRange(_vmWriter.WriteGoto($"WHILE_BEGIN{whileLoopRunningIndex}"));
+            instructions.AddRange(_vmWriter.WriteLabel($"WHILE_END{whileLoopRunningIndex}"));
 
             return ("whileStatement", instructions);
         }
@@ -235,7 +249,7 @@ namespace JackCompiler.Net
                 instructions.AddRange(WriteExpression(expressionTree));
             }
 
-            instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.FirstChild.ChildNodes.Count));
+            instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.ChildNodes.Count));
 
             if (IsUserDefinedSubroutine(subroutineName))
             {
@@ -641,12 +655,6 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileReturn(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            if (_currentExecutingSubroutine == "main")
-            {
-                instructions.AddRange(_vmWriter.WritePush("constant", 0));
-            }
-
             var lastTokenValue = string.Empty;
 
             while (lastTokenValue != ";")
@@ -697,7 +705,8 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
             var subroutineSignature = tokens.Pop(3);
-            var subroutineName = $"{_className}.{subroutineSignature.First(x => x.TokenType == TokenType.Identifier).Value}";
+            var subroutineReturnType = subroutineSignature[1].Value;
+            var subroutineName = $"{_className}.{subroutineSignature[2].Value}";
             var parameterList = tokens.PopParameterList();
             var indexOfClosingBracket = FindIndexOfClosingBracket(0, tokens);
             var numberOfRemainingTokensAfterSubroutine = tokens.Count - (indexOfClosingBracket + 1);
@@ -729,6 +738,7 @@ namespace JackCompiler.Net
             var openingBracketToken = tokens.Pop(); // pop opening bracket
             var varDeclarations = new List<string>();
             var statementDeclarations = new List<string>();
+            IList<string> returnStatement = null;
 
             //continue to pop tokens that are defined within this subroutine
             //the count should be minus 1 because we handle popping off the closing }
@@ -741,6 +751,10 @@ namespace JackCompiler.Net
                 {
                     varDeclarations.AddRange(constructInstructions);
                 }
+                else if (constructType == "returnStatement")
+                {
+                    returnStatement = constructInstructions;
+                }
                 else if (constructType.Contains("statement", StringComparison.InvariantCultureIgnoreCase))
                 {
                     statementDeclarations.AddRange(constructInstructions);
@@ -752,6 +766,13 @@ namespace JackCompiler.Net
             instructions.AddRange(_vmWriter.WriteFunction(subroutineName, varDeclarations.Count(x => x == "<varDec>")));
             instructions.AddRange(varDeclarations);
             instructions.AddRange(statementDeclarations);
+
+            if (subroutineReturnType == "void")
+            {
+                instructions.AddRange(_vmWriter.WritePush("constant", 0));
+            }
+
+            instructions.AddRange(returnStatement);
 
             return ("subroutineDec", instructions);
         }

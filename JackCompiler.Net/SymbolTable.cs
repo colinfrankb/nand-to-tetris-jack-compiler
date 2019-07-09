@@ -11,6 +11,8 @@ namespace JackCompiler.Net
     {
         private IList<Symbol> _classScopeIdentifiers;
         private IList<Symbol> _subroutineScopeIdentifiers;
+        private int _whileLoopRunningIndex = -1;
+        private int _ifStatementRunningIndex = -1;
 
         public SymbolTable()
         {
@@ -21,6 +23,8 @@ namespace JackCompiler.Net
         public void StartSubroutine()
         {
             _subroutineScopeIdentifiers = new List<Symbol>();
+            _whileLoopRunningIndex = -1;
+            _ifStatementRunningIndex = -1;
         }
 
         // always one class compiling at a time
@@ -77,6 +81,20 @@ namespace JackCompiler.Net
             var symbol = _subroutineScopeIdentifiers.FirstOrDefault(x => x.Name == identifierName);
 
             return symbol ?? _classScopeIdentifiers.FirstOrDefault(x => x.Name == identifierName);
+        }
+
+        public int GetNextWhileLoopRunningIndex()
+        {
+            _whileLoopRunningIndex++;
+
+            return _whileLoopRunningIndex;
+        }
+
+        public int GetNextIfStatementRunningIndex()
+        {
+            _ifStatementRunningIndex++;
+
+            return _ifStatementRunningIndex;
         }
     }
 }
