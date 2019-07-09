@@ -10,12 +10,16 @@ namespace JackCompiler.Net
     public class CompilationEngine
     {
         private readonly SymbolTable _symbolTable;
+        private string _className;
         private VMWriter _vmWriter;
-        private string _currentSubroutine;
+        private string _currentExecutingSubroutine;
+        private IList<string> _userDefinedSubroutines;
 
         public CompilationEngine()
         {
             _symbolTable = new SymbolTable();
+            _vmWriter = new VMWriter();
+            _userDefinedSubroutines = new List<string>();
         }
 
         public IList<string> Compile(IEnumerable<Token> tokens)
@@ -147,7 +151,7 @@ namespace JackCompiler.Net
                     var expression = CompileExpression(expressionTokens);
                     var expressionTree = ExpressionTree.ConvertToXmlDocument(expression).FirstChild;
 
-                    instructions.AddRange(_vmWriter.WriteExpression(expressionTree, _symbolTable));
+                    instructions.AddRange(WriteExpression(expressionTree));
                     instructions.AddRange(_vmWriter.WriteIf("L2"));
                 }
 
@@ -202,16 +206,13 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
             var lastTokenValue = string.Empty;
-            var functionName = string.Empty;
+            var subroutineName = string.Empty;
             var expressionList = new List<string>();
 
             while (lastTokenValue != ";")
             {
                 if (lastTokenValue == "(")
                 {
-                    // functionName only get assigned once the token stream reaches the opening ( bracket
-                    _symbolTable.StartSubroutine(functionName);
-
                     var expressionListTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
 
                     expressionList.AddRange(CompileExpressionList(expressionListTokens));
@@ -221,7 +222,7 @@ namespace JackCompiler.Net
 
                 if (token.TokenType == TokenType.Identifier || token.Value == ".")
                 {
-                    functionName += token.Value;
+                    subroutineName += token.Value;
                 }
                 
                 lastTokenValue = token.Value;
@@ -231,10 +232,15 @@ namespace JackCompiler.Net
 
             foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
             {
-                instructions.AddRange(_vmWriter.WriteExpression(expressionTree, _symbolTable));
+                instructions.AddRange(WriteExpression(expressionTree));
             }
 
-            instructions.AddRange(_vmWriter.WriteCall(functionName, expressionTreeList.FirstChild.ChildNodes.Count));
+            instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.FirstChild.ChildNodes.Count));
+
+            if (IsUserDefinedSubroutine(subroutineName))
+            {
+                _currentExecutingSubroutine = subroutineName;
+            }
 
             return ("doStatement", instructions);
         }
@@ -276,18 +282,16 @@ namespace JackCompiler.Net
 
             var valueExpressionTree = ExpressionTree.ConvertToXmlDocument(valueExpression).FirstChild;
 
-            instructions.AddRange(_vmWriter.WriteExpression(valueExpressionTree, _symbolTable));
+            instructions.AddRange(WriteExpression(valueExpressionTree));
 
-            var symbol = _symbolTable.GetSymbolByName(_currentSubroutine, identifierName);
+            var symbol = _symbolTable.GetSymbolByName(identifierName);
 
             //TODO: Set an int
             //TODO: Set a string
             //TODO: Set an object
             //TODO: Set a field of an object
 
-
             instructions.AddRange(_vmWriter.WritePop(symbol.ToSegment(), symbol.RunningIndex));
-
 
             return ("letStatement", instructions);
         }
@@ -508,7 +512,7 @@ namespace JackCompiler.Net
                     }
                     else
                     {
-                        instructions.Add($"<term kind=\"variable\" subroutine=\"{_currentSubroutine}\">");
+                        instructions.Add($"<term kind=\"variable\" subroutine=\"{_currentExecutingSubroutine}\">");
                         instructions.Add(ToXmlElement(token));
                         instructions.Add("</term>");
                     }
@@ -516,6 +520,87 @@ namespace JackCompiler.Net
             }
             
             instructions.Add("</expression>");
+
+            return instructions;
+        }
+
+        private IList<string> WriteExpression(XmlNode expressionTree)
+        {
+            var instructions = new List<string>();
+
+            for (int i = 0; i < expressionTree.ChildNodes.Count;)
+            {
+                if (i == 0) // term
+                {
+                    var termNode = expressionTree.ChildNodes[i];
+
+                    instructions.AddRange(WriteTerm(termNode));
+
+                    i++;
+
+                    continue;
+                }
+                else // op term
+                {
+                    // perform Reverse Polish Notation
+                    var operatorNode = expressionTree.ChildNodes[i];
+                    var nextTermNode = expressionTree.ChildNodes[i + 1];
+
+                    instructions.AddRange(WriteTerm(nextTermNode));
+                    instructions.Add(_vmWriter.WriteArithmetic(operatorNode));
+
+                    i += 2;
+                }
+            }
+
+            return instructions;
+        }
+
+        public IList<string> WriteTerm(XmlNode termNode)
+        {
+            var instructions = new List<string>();
+
+            if (_vmWriter.IsInteger(termNode))
+            {
+                var termValue = _vmWriter.GetIntegerValue(termNode);
+
+                instructions.AddRange(_vmWriter.WritePush("constant", termValue));
+            }
+            else if (_vmWriter.IsExpression(termNode))
+            {
+                instructions.AddRange(WriteExpression(termNode.FirstChild));
+            }
+            else if (_vmWriter.IsArithmeticNegation(termNode))
+            {
+                instructions.AddRange(WriteTerm(termNode.ChildNodes.Item(1)));
+                instructions.Add("neg");
+            }
+            else if (_vmWriter.IsSubroutineCall(termNode))
+            {
+                //this subroutineName will be the fully qualified name i.e <class>.<subroutine>
+                var subroutineName = termNode.FirstChild.InnerText;
+                var expressionTreeList = termNode.ChildNodes[1];
+
+                foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
+                {
+                    instructions.AddRange(WriteExpression(expressionTree));
+                }
+
+                instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.ChildNodes.Count));
+
+                if (IsUserDefinedSubroutine(subroutineName))
+                {
+                    _currentExecutingSubroutine = subroutineName;
+                }
+            }
+            else if (_vmWriter.IsVariable(termNode))
+            {
+                var variableName = termNode.FirstChild.InnerText;
+                var subroutineName = termNode.Attributes["subroutine"].Value;
+                var symbol = _symbolTable.GetSymbolByName(variableName);
+
+                instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
+            }
 
             return instructions;
         }
@@ -545,7 +630,7 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
-            var runningIndex = _symbolTable.DefineIdentifier(_currentSubroutine, identifierName, identifierType, "var");
+            var runningIndex = _symbolTable.DefineIdentifier(identifierName, identifierType, "var");
 
             //TODO: Determine the memory that needs to be allocated, for example when the type of the identifier
             //is an Object or a string
@@ -557,7 +642,7 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
 
-            if (_currentSubroutine == "main")
+            if (_currentExecutingSubroutine == "main")
             {
                 instructions.AddRange(_vmWriter.WritePush("constant", 0));
             }
@@ -611,39 +696,37 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileSubroutine(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            //instructions.Add("<subroutineDec>");
-
             var subroutineSignature = tokens.Pop(3);
-            var subroutineName = subroutineSignature.First(x => x.TokenType == TokenType.Identifier).Value;
+            var subroutineName = $"{_className}.{subroutineSignature.First(x => x.TokenType == TokenType.Identifier).Value}";
             var parameterList = tokens.PopParameterList();
             var indexOfClosingBracket = FindIndexOfClosingBracket(0, tokens);
             var numberOfRemainingTokensAfterSubroutine = tokens.Count - (indexOfClosingBracket + 1);
 
-            _currentSubroutine = subroutineName;
-            
-            //foreach (var token in subroutineSignature)
-            //{
-            //    instructions.Add(ToXmlElement(token, "subroutine"));
-            //}
+            _userDefinedSubroutines.Add(subroutineName);
 
-            //foreach (var token in parameterList)
-            //{
-            //    if (token.Value == ")")
-            //        instructions.Add("</parameterList>");
+            //I was getting confused with runtime, design time and compile time. I thought that writing a "call" vm instruction would
+            //perform the goto, and jump to the execution of the called subroutine and therefore losing knowledge of the stored variable names.
+            //This is not true, because at compile time, it is merely writing call and I will still be contextually inside the subroutine, 
+            //meaning I still have access to all the stored variables. This is why I can call StartSubroutine and reinitialise 
+            //SymbolTable._subroutineScopeIdentifiers whenever compiling a subroutine.
+            _symbolTable.StartSubroutine();
 
-            //    instructions.Add(ToXmlElement(token));
+            //the main function is called by the runtime i.e. called by Sys.init
+            //therefore, as soon as the subroutine is compiled I can set it as the current executing subroutine
+            if (subroutineName == "Main.main")
+            {
+                _currentExecutingSubroutine = subroutineName;
+            }
 
-            //    if (token.Value == "(")
-            //        instructions.Add("<parameterList>");
-            //}
+            for (int i = 0, j = 1; i < parameterList.Count; i += 2, j += 2)
+            {
+                var parameterType = parameterList[i].Value;
+                var parameterName = parameterList[j].Value;
 
-            //instructions.Add("<subroutineBody>");
+                _symbolTable.DefineIdentifier(parameterName, parameterType, "argument");
+            }
 
-            var openingBracketToken = tokens.Pop();
-
-            //instructions.Add(ToXmlElement(openingBracketToken));
-
+            var openingBracketToken = tokens.Pop(); // pop opening bracket
             var varDeclarations = new List<string>();
             var statementDeclarations = new List<string>();
 
@@ -664,19 +747,7 @@ namespace JackCompiler.Net
                 }
             }
 
-            //instructions.AddRange(varDeclarations);
-
-            //instructions.Add("<statements>");
-            //instructions.AddRange(statementDeclarations);
-            //instructions.Add("</statements>");
-
-            var closingBracketToken = tokens.Pop();
-
-            //instructions.Add(ToXmlElement(closingBracketToken));
-
-            //instructions.Add("</subroutineBody>");
-
-            //instructions.Add("</subroutineDec>");
+            tokens.Pop(); // pop closing bracket
 
             instructions.AddRange(_vmWriter.WriteFunction(subroutineName, varDeclarations.Count(x => x == "<varDec>")));
             instructions.AddRange(varDeclarations);
@@ -689,9 +760,7 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
             var classSignature = tokens.Pop(3);
-            var className = classSignature.First(x => x.TokenType == TokenType.Identifier).Value;
-
-            _vmWriter = new VMWriter(className);
+            _className = classSignature.First(x => x.TokenType == TokenType.Identifier).Value;
 
             while (tokens.Count > 1)
             {
@@ -761,13 +830,18 @@ namespace JackCompiler.Net
 
                 if (!string.IsNullOrEmpty(callingConstruct) && Regex.IsMatch(callingConstruct, "(field|static|argument|var)"))
                 {
-                    var runningIndex = _symbolTable.DefineIdentifier(callingConstruct, token.Value, "", callingConstruct);
+                    var runningIndex = _symbolTable.DefineIdentifier(token.Value, "", callingConstruct);
 
                     openingTagContent += $" runningIndex=\"{runningIndex}\"";
                 }
             }
 
             return $"<{openingTagContent}> {XmlEncoder.EncodeTokenValue(token.Value)} </{token.TokenType}>";
+        }
+
+        private bool IsUserDefinedSubroutine(string subroutineName)
+        {
+            return _userDefinedSubroutines.Any(x => x == subroutineName);
         }
     }
 }

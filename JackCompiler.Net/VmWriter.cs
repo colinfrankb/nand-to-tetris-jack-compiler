@@ -7,16 +7,11 @@ namespace JackCompiler.Net
 {
     public class VMWriter : VmWriterBase
     {
-        public VMWriter(string className)
-            : base(className)
-        {
-        }
-
         public IList<string> WriteFunction(string functionName, int nLocals)
         {
             return new List<string>
             {
-                $"function {_className}.{functionName} {nLocals}"
+                $"function {functionName} {nLocals}"
             };
         }
 
@@ -30,82 +25,6 @@ namespace JackCompiler.Net
             if (functionName.Contains("Output."))
             {
                 instructions.AddRange(WritePop("temp", 0));
-            }
-
-            return instructions;
-        }
-
-        public IList<string> WriteExpression(XmlNode expressionTree, SymbolTable symbolTable)
-        {
-            var instructions = new List<string>();
-
-            for (int i = 0; i < expressionTree.ChildNodes.Count;)
-            {
-                if (i == 0) // term
-                {
-                    var termNode = expressionTree.ChildNodes[i];
-
-                    instructions.AddRange(WriteTerm(termNode, symbolTable));
-
-                    i++;
-
-                    continue;
-                }
-                else // op term
-                {
-                    // perform Reverse Polish Notation
-                    var operatorNode = expressionTree.ChildNodes[i];
-                    var nextTermNode = expressionTree.ChildNodes[i + 1];
-
-                    instructions.AddRange(WriteTerm(nextTermNode, symbolTable));
-                    instructions.Add(WriteArithmetic(operatorNode));
-
-                    i += 2;
-                }
-
-            }
-
-            return instructions;
-        }
-
-        public IList<string> WriteTerm(XmlNode termNode, SymbolTable symbolTable)
-        {
-            var instructions = new List<string>();
-
-            if (IsInteger(termNode))
-            {
-                var termValue = GetIntegerValue(termNode);
-
-                instructions.AddRange(WritePush("constant", termValue));
-            }
-            else if (IsExpression(termNode))
-            {
-                instructions.AddRange(WriteExpression(termNode.FirstChild, symbolTable));
-            }
-            else if (IsArithmeticNegation(termNode))
-            {
-                instructions.AddRange(WriteTerm(termNode.ChildNodes.Item(1), symbolTable));
-                instructions.Add("neg");
-            }
-            else if (IsSubroutineCall(termNode))
-            {
-                var subroutineName = termNode.FirstChild.InnerText;
-                var expressionTreeList = termNode.ChildNodes[1];
-
-                foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
-                {
-                    instructions.AddRange(WriteExpression(expressionTree, symbolTable));
-                }
-
-                instructions.AddRange(WriteCall(subroutineName, 0));
-            }
-            else if (IsVariable(termNode))
-            {
-                var variableName = termNode.FirstChild.InnerText;
-                var subroutineName = termNode.Attributes["subroutine"].Value;
-                var symbol = symbolTable.GetSymbolByName(subroutineName, variableName);
-
-                instructions.AddRange(WritePush(symbol.ToSegment(), symbol.RunningIndex));
             }
 
             return instructions;
@@ -161,6 +80,11 @@ namespace JackCompiler.Net
             {
                 $"goto {labelName}"
             };
+        }
+
+        public string WriteArithmetic(XmlNode operatorNode)
+        {
+            return _arithmeticDictionary[operatorNode.InnerText.Trim()];
         }
     }
 }

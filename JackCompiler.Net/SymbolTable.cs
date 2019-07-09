@@ -10,21 +10,21 @@ namespace JackCompiler.Net
     public class SymbolTable
     {
         private IList<Symbol> _classScopeIdentifiers;
-        private IDictionary<string, IList<Symbol>> _subroutineScopeIdentifiers;
+        private IList<Symbol> _subroutineScopeIdentifiers;
 
         public SymbolTable()
         {
             _classScopeIdentifiers = new List<Symbol>();
-            _subroutineScopeIdentifiers = new Dictionary<string, IList<Symbol>>();
+            _subroutineScopeIdentifiers = new List<Symbol>();
         }
 
-        public void StartSubroutine(string subroutineName)
+        public void StartSubroutine()
         {
-            _subroutineScopeIdentifiers[subroutineName] = new List<Symbol>();
+            _subroutineScopeIdentifiers = new List<Symbol>();
         }
 
         // always one class compiling at a time
-        public int DefineIdentifier(string subroutineName, string name, string type, string kind)
+        public int DefineIdentifier(string name, string type, string kind)
         {
             var symbol = new Symbol
             {
@@ -44,16 +44,11 @@ namespace JackCompiler.Net
             }
             else // kind is (var|argument)
             {
-                if (!_subroutineScopeIdentifiers.ContainsKey(subroutineName))
+                if (!_subroutineScopeIdentifiers.Contains(symbol))
                 {
-                    _subroutineScopeIdentifiers[subroutineName] = new List<Symbol>();
-                }
+                    symbol.RunningIndex = GetNextRunningIndex(_subroutineScopeIdentifiers, symbol.Kind);
 
-                if (_subroutineScopeIdentifiers.ContainsKey(subroutineName) && !_subroutineScopeIdentifiers[subroutineName].Contains(symbol))
-                {
-                    symbol.RunningIndex = GetNextRunningIndex(_subroutineScopeIdentifiers[subroutineName], symbol.Kind);
-
-                    _subroutineScopeIdentifiers[subroutineName].Add(symbol);
+                    _subroutineScopeIdentifiers.Add(symbol);
                 }
             }
 
@@ -72,14 +67,14 @@ namespace JackCompiler.Net
             return currentRunningIndex;
         }
 
-        public int IndexOf(string subroutineName, string name)
+        public int IndexOf(string name)
         {
-            return GetSymbolByName(subroutineName, name)?.RunningIndex ?? -1;
+            return GetSymbolByName(name)?.RunningIndex ?? -1;
         }
 
-        public Symbol GetSymbolByName(string subroutineName, string identifierName)
+        public Symbol GetSymbolByName(string identifierName)
         {
-            var symbol = _subroutineScopeIdentifiers[subroutineName].FirstOrDefault(x => x.Name == identifierName);
+            var symbol = _subroutineScopeIdentifiers.FirstOrDefault(x => x.Name == identifierName);
 
             return symbol ?? _classScopeIdentifiers.FirstOrDefault(x => x.Name == identifierName);
         }

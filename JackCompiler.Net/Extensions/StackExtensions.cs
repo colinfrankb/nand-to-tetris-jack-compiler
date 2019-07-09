@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace JackCompiler.Net.Extensions
 {
@@ -29,7 +30,10 @@ namespace JackCompiler.Net.Extensions
 
                 lastTokenValue = token.Value;
 
-                result.Add(token);
+                if (!Regex.IsMatch(token.Value, @"(\(|\)|,)"))
+                {
+                    result.Add(token);
+                }
             }
 
             return result;

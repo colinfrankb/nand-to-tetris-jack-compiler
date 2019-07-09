@@ -7,7 +7,6 @@ namespace JackCompiler.Net
 {
     public class VmWriterBase
     {
-        protected readonly string _className;
         protected IDictionary<string, string> _arithmeticDictionary = new Dictionary<string, string>
         {
             { "+", "add" },
@@ -22,42 +21,32 @@ namespace JackCompiler.Net
             { "|", "or" }
         };
 
-        public VmWriterBase(string className)
-        {
-            _className = className;
-        }
-
-        protected string WriteArithmetic(XmlNode operatorNode)
-        {
-            return _arithmeticDictionary[operatorNode.InnerText.Trim()];
-        }
-
-        protected bool IsVariable(XmlNode termNode)
+        public bool IsVariable(XmlNode termNode)
         {
             return termNode.Attributes["kind"].Value == "variable";
         }
 
-        protected bool IsSubroutineCall(XmlNode termNode)
+        public bool IsSubroutineCall(XmlNode termNode)
         {
             return termNode.Attributes["kind"].Value == "subroutineCall";
         }
 
-        protected bool IsExpression(XmlNode termNode)
+        public bool IsExpression(XmlNode termNode)
         {
             return termNode.FirstChild.Name == "expression";
         }
 
-        protected bool IsArithmeticNegation(XmlNode termNode)
+        public bool IsArithmeticNegation(XmlNode termNode)
         {
             return termNode.FirstChild.Name == "symbol";
         }
 
-        protected int GetIntegerValue(XmlNode termNode)
+        public int GetIntegerValue(XmlNode termNode)
         {
             return Convert.ToInt32(termNode.FirstChild.InnerText.Trim());
         }
 
-        protected bool IsInteger(XmlNode termNode)
+        public bool IsInteger(XmlNode termNode)
         {
             return termNode.FirstChild.Name == TokenType.IntegerConstant;
         }
