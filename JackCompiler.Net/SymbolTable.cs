@@ -96,5 +96,10 @@ namespace JackCompiler.Net
 
             return _ifStatementRunningIndex;
         }
+
+        public int VarCount(string kind)
+        {
+            return _subroutineScopeIdentifiers.Count(x => x.Kind == kind);
+        }
     }
 }

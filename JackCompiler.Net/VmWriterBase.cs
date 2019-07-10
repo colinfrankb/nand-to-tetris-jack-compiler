@@ -13,7 +13,7 @@ namespace JackCompiler.Net
             { "-", "sub" },
             { "*", "call Math.multiply 2" },
             { "/", "call Math.divide 2" },
-            { "~", "neg" },
+            { "~", "not" },
             { "=", "eq" },
             { ">", "gt" },
             { "<", "lt" },
@@ -23,12 +23,17 @@ namespace JackCompiler.Net
 
         public bool IsVariable(XmlNode termNode)
         {
-            return termNode.Attributes["kind"].Value == "variable";
+            return GetTermNodeKind(termNode) == "variable";
         }
 
         public bool IsSubroutineCall(XmlNode termNode)
         {
-            return termNode.Attributes["kind"].Value == "subroutineCall";
+            return GetTermNodeKind(termNode) == "subroutineCall";
+        }
+
+        private string GetTermNodeKind(XmlNode termNode)
+        {
+            return termNode.Attributes["kind"]?.Value ?? string.Empty;
         }
 
         public bool IsExpression(XmlNode termNode)
@@ -36,7 +41,7 @@ namespace JackCompiler.Net
             return termNode.FirstChild.Name == "expression";
         }
 
-        public bool IsArithmeticNegation(XmlNode termNode)
+        public bool IsNegation(XmlNode termNode)
         {
             return termNode.FirstChild.Name == "symbol";
         }
@@ -46,9 +51,24 @@ namespace JackCompiler.Net
             return Convert.ToInt32(termNode.FirstChild.InnerText.Trim());
         }
 
+        public bool GetBooleanValue(XmlNode termNode)
+        {
+            return Convert.ToBoolean(termNode.FirstChild.InnerText.Trim());
+        }
+
         public bool IsInteger(XmlNode termNode)
         {
             return termNode.FirstChild.Name == TokenType.IntegerConstant;
+        }
+
+        public bool IsString(XmlNode termNode)
+        {
+            return termNode.FirstChild.Name == TokenType.StringConstant;
+        }
+
+        public bool IsBoolean(XmlNode termNode)
+        {
+            return termNode.FirstChild.Name == TokenType.Keyword;
         }
     }
 }

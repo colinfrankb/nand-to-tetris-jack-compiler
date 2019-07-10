@@ -92,45 +92,56 @@ namespace JackCompiler.Net
 
         private (string ConstructType, IList<string> ConstructInstructions) CompileIf(Stack<Token> tokens)
         {
+            //vm code for ~(expression)
+            //if-goto else_begin_for_if (even if there is no else, still go there, the extra step does not make a difference)
+            //vm code for executing body of if statement
+            //goto if_end
+            //label else_begin_for_if
+            //vm code for executing body of else statement
+            //label if_end
             var instructions = new List<string>();
-
-            instructions.Add("<ifStatement>");
-
             var lastTokenValue = string.Empty;
+            var ifStatementRunningIndex = _symbolTable.GetNextIfStatementRunningIndex();
 
             while (tokens.Peek().Value != "{")
             {
                 if (lastTokenValue == "(")
                 {
                     var expressionTokens = PopExpressionTokensBetweenBrackets("(", ")", tokens);
+                    var expression = CompileExpression(expressionTokens);
+                    var expressionTree = ExpressionTree.ConvertToXmlDocument(expression).FirstChild;
 
-                    instructions.AddRange(CompileExpression(expressionTokens));
+                    instructions.AddRange(WriteExpression(expressionTree));
+
+                    //same rational as the while loop
+                    instructions.Add("not");
+
+                    instructions.AddRange(_vmWriter.WriteIf($"ELSE_BEGIN{ifStatementRunningIndex}"));
                 }
 
                 var token = tokens.Pop();
 
                 lastTokenValue = token.Value;
-                instructions.Add(ToXmlElement(token));
             }
 
             var bodyTokens = PopStatementBody(tokens); //first token is "{", last token is "}"
 
             AddStatements(instructions, bodyTokens);
 
+            instructions.AddRange(_vmWriter.WriteGoto($"IF_END{ifStatementRunningIndex}"));
+            instructions.AddRange(_vmWriter.WriteLabel($"ELSE_BEGIN{ifStatementRunningIndex}"));
+
             var nextToken = tokens.Peek();
 
             if (nextToken.TokenType == "keyword" && nextToken.Value == "else")
             {
                 var elseToken = tokens.Pop();
-
-                instructions.Add(ToXmlElement(elseToken));
-
                 var elseStatementBodyTokens = PopStatementBody(tokens);
 
                 AddStatements(instructions, elseStatementBodyTokens);
             }
 
-            instructions.Add("</ifStatement>");
+            instructions.AddRange(_vmWriter.WriteLabel($"IF_END{ifStatementRunningIndex}"));
 
             return ("ifStatement", instructions);
         }
@@ -580,14 +591,29 @@ namespace JackCompiler.Net
 
                 instructions.AddRange(_vmWriter.WritePush("constant", termValue));
             }
+            if (_vmWriter.IsBoolean(termNode))
+            {
+                var termValue = _vmWriter.GetBooleanValue(termNode);
+
+                if (termValue)
+                {
+                    instructions.AddRange(_vmWriter.WritePush("constant", 0));
+                    // true is represented as 111...n
+                    instructions.Add("not"); 
+                }
+                else
+                {
+                    instructions.AddRange(_vmWriter.WritePush("constant", 0));
+                }
+            }
             else if (_vmWriter.IsExpression(termNode))
             {
                 instructions.AddRange(WriteExpression(termNode.FirstChild));
             }
-            else if (_vmWriter.IsArithmeticNegation(termNode))
+            else if (_vmWriter.IsNegation(termNode))
             {
                 instructions.AddRange(WriteTerm(termNode.ChildNodes.Item(1)));
-                instructions.Add("neg");
+                instructions.Add(termNode.FirstChild.InnerText.Trim() == "-" ? "neg" : "not"); // - (arithmetic) or ~ (bitwise)
             }
             else if (_vmWriter.IsSubroutineCall(termNode))
             {
@@ -624,7 +650,7 @@ namespace JackCompiler.Net
             var instructions = new List<string>();
             var currentIndex = -1;
             var identifierType = string.Empty;
-            var identifierName = string.Empty;
+            var identifierNames = new List<string>();
             var lastTokenValue = string.Empty;
 
             while (lastTokenValue != ";")
@@ -636,15 +662,18 @@ namespace JackCompiler.Net
                 {
                     identifierType = token.Value;
                 }
-                else if (currentIndex == 2)
+                else if (token.TokenType == TokenType.Identifier)
                 {
-                    identifierName = token.Value;
+                    identifierNames.Add(token.Value);
                 }
 
                 lastTokenValue = token.Value;
             }
 
-            var runningIndex = _symbolTable.DefineIdentifier(identifierName, identifierType, "var");
+            foreach (var identifierName in identifierNames)
+            {
+                _symbolTable.DefineIdentifier(identifierName, identifierType, "var");
+            }
 
             //TODO: Determine the memory that needs to be allocated, for example when the type of the identifier
             //is an Object or a string
@@ -665,7 +694,10 @@ namespace JackCompiler.Net
 
                     if (expressionTokens.Count > 0)
                     {
-                        instructions.AddRange(CompileExpression(expressionTokens));
+                        var expression = CompileExpression(expressionTokens);
+                        var expressionTree = ExpressionTree.ConvertToXmlDocument(expression).FirstChild;
+
+                        instructions.AddRange(WriteExpression(expressionTree));
                     }
                 }
 
@@ -763,7 +795,7 @@ namespace JackCompiler.Net
 
             tokens.Pop(); // pop closing bracket
 
-            instructions.AddRange(_vmWriter.WriteFunction(subroutineName, varDeclarations.Count(x => x == "<varDec>")));
+            instructions.AddRange(_vmWriter.WriteFunction(subroutineName, _symbolTable.VarCount("argument")));
             instructions.AddRange(varDeclarations);
             instructions.AddRange(statementDeclarations);
 
@@ -772,7 +804,10 @@ namespace JackCompiler.Net
                 instructions.AddRange(_vmWriter.WritePush("constant", 0));
             }
 
-            instructions.AddRange(returnStatement);
+            if (returnStatement != null)
+            {
+                instructions.AddRange(returnStatement);
+            }
 
             return ("subroutineDec", instructions);
         }
