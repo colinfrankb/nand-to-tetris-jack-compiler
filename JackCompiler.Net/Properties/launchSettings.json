@@ -8,10 +8,6 @@
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\ArrayTest"
     },
-    "Square": {
-      "commandName": "Project",
-      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\10\\Square"
-    },
     "Seven": {
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\Seven"
@@ -19,6 +15,10 @@
     "ConvertToBin": {
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\ConvertToBin"
+    },
+    "Square": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\CustomTest"
     }
   }
 }

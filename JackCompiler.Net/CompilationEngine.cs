@@ -795,7 +795,7 @@ namespace JackCompiler.Net
 
             tokens.Pop(); // pop closing bracket
 
-            instructions.AddRange(_vmWriter.WriteFunction(subroutineName, _symbolTable.VarCount("argument")));
+            instructions.AddRange(_vmWriter.WriteFunction(subroutineName, _symbolTable.VarCount("var")));
             instructions.AddRange(varDeclarations);
             instructions.AddRange(statementDeclarations);
 

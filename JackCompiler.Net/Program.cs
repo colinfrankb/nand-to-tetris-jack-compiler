@@ -39,7 +39,7 @@ namespace JackCompiler.Net
                 string directoryPath = Path.GetDirectoryName(filePath);
                 string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
                 string outputTokensFilePath = $"{directoryPath}\\{fileNameWithoutExtension}T.mine.xml";
-                string outputLanguageConstructsFilePath = $"{directoryPath}\\{fileNameWithoutExtension}.mine.vm";
+                string outputLanguageConstructsFilePath = $"{directoryPath}\\{fileNameWithoutExtension}.vm";
 
                 Console.WriteLine($"{outputTokensFilePath}");
                 Console.WriteLine($"{outputLanguageConstructsFilePath}");
