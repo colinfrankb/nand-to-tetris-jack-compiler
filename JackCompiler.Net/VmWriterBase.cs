@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 namespace JackCompiler.Net
@@ -68,7 +69,12 @@ namespace JackCompiler.Net
 
         public bool IsBoolean(XmlNode termNode)
         {
-            return termNode.FirstChild.Name == TokenType.Keyword;
+            return termNode.FirstChild.Name == TokenType.Keyword && Regex.IsMatch(termNode.FirstChild.InnerText.Trim(), "(true|false)");
+        }
+
+        public bool IsThis(XmlNode termNode)
+        {
+            return termNode.FirstChild.Name == TokenType.Keyword && termNode.FirstChild.InnerText.Trim() == "this";
         }
     }
 }

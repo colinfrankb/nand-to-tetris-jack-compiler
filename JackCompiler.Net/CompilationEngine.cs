@@ -714,21 +714,32 @@ namespace JackCompiler.Net
         private (string ConstructType, IList<string> ConstructInstructions) CompileClassVarDec(Stack<Token> tokens)
         {
             var instructions = new List<string>();
-
-            instructions.Add("<classVarDec>");
-
             var lastTokenValue = string.Empty;
+            var currentIndex = -1;
+            var identifierType = string.Empty;
+            var identifierNames = new List<string>();
 
             while (lastTokenValue != ";")
             {
+                currentIndex++;
                 var token = tokens.Pop();
 
-                lastTokenValue = token.Value;
+                if (currentIndex == 1)
+                {
+                    identifierType = token.Value;
+                }
+                else if (token.TokenType == TokenType.Identifier)
+                {
+                    identifierNames.Add(token.Value);
+                }
 
-                instructions.Add(ToXmlElement(token));
+                lastTokenValue = token.Value;
             }
 
-            instructions.Add("</classVarDec>");
+            foreach (var identifierName in identifierNames)
+            {
+                _symbolTable.DefineIdentifier(identifierName, identifierType, "field");
+            }
 
             return ("classVarDec", instructions);
         }
