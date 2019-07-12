@@ -591,6 +591,10 @@ namespace JackCompiler.Net
 
                 instructions.AddRange(_vmWriter.WritePush("constant", termValue));
             }
+            if (_vmWriter.IsThis(termNode))
+            {
+                instructions.AddRange(_vmWriter.WritePush("pointer", 0));
+            }
             if (_vmWriter.IsBoolean(termNode))
             {
                 var termValue = _vmWriter.GetBooleanValue(termNode);
