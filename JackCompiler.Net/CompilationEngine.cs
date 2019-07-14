@@ -253,6 +253,9 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
+            //If method call, push memory address on object onto global stack
+
+            //Push result of expressions in expressionlist onto global stack
             var expressionTreeList = ExpressionTree.ConvertToXmlDocument(expressionList).FirstChild; // The root is a XmlDocument
 
             foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
@@ -752,6 +755,7 @@ namespace JackCompiler.Net
         {
             var instructions = new List<string>();
             var subroutineSignature = tokens.Pop(3);
+            var subroutineKind = subroutineSignature[0].Value;
             var subroutineReturnType = subroutineSignature[1].Value;
             var subroutineName = $"{_className}.{subroutineSignature[2].Value}";
             var parameterList = tokens.PopParameterList();
@@ -811,6 +815,26 @@ namespace JackCompiler.Net
             tokens.Pop(); // pop closing bracket
 
             instructions.AddRange(_vmWriter.WriteFunction(subroutineName, _symbolTable.VarCount("var")));
+
+            if (subroutineKind == "constructor")
+            {
+                //Allocate memory using Memory.alloc(<block size>). The block size is the number of words that will be
+                //allocated. 
+                //Determine the number of words required based on the number and types of fields
+                //For the jack language the amount of words allocated for a type does not matter for fields, 
+                //because value types e.g. ints and base addresses for objects are the same bit-length
+                instructions.AddRange(_vmWriter.WritePush("constant", _symbolTable.VarCount("field")));
+                instructions.AddRange(_vmWriter.WriteCall("Memory.alloc", 1));
+                instructions.AddRange(_vmWriter.WritePop("pointer", 0));
+            }
+            else if (subroutineKind == "method")
+            {
+                //The first argument will be the memory address of the object on which the method is supposed to operate,
+                //therefore, set THIS to that memory address
+                instructions.AddRange(_vmWriter.WritePush("argument", 0));
+                instructions.AddRange(_vmWriter.WritePop("pointer", 0));
+            }
+            
             instructions.AddRange(varDeclarations);
             instructions.AddRange(statementDeclarations);
 

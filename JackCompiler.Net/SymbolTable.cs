@@ -99,7 +99,9 @@ namespace JackCompiler.Net
 
         public int VarCount(string kind)
         {
-            return _subroutineScopeIdentifiers.Count(x => x.Kind == kind);
+            var varCount = _subroutineScopeIdentifiers.Count(x => x.Kind == kind);
+
+            return varCount == 0 ? _classScopeIdentifiers.Count(x => x.Kind == kind) : varCount;
         }
     }
 }
