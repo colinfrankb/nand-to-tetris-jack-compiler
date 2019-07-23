@@ -253,7 +253,14 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
-            //If method call, push memory address on object onto global stack
+            var subroutine = new Subroutine(subroutineName);
+
+            if (subroutine.IsMethod())
+            {
+                var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
+
+                instructions.AddRange(_vmWriter.WritePush(objectSymbol.ToSegment(), objectSymbol.RunningIndex));
+            }
 
             //Push result of expressions in expressionlist onto global stack
             var expressionTreeList = ExpressionTree.ConvertToXmlDocument(expressionList).FirstChild; // The root is a XmlDocument
@@ -263,7 +270,17 @@ namespace JackCompiler.Net
                 instructions.AddRange(WriteExpression(expressionTree));
             }
 
-            instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.ChildNodes.Count));
+            if (subroutine.IsMethod())
+            {
+                var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
+                var callingSubroutineName = $"{objectSymbol.Type}.{subroutineName.Split('.')[1]}";
+
+                instructions.AddRange(_vmWriter.WriteCall(callingSubroutineName, expressionTreeList.ChildNodes.Count + 1));
+            }
+            else
+            {
+                instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.ChildNodes.Count));
+            }
 
             if (IsUserDefinedSubroutine(subroutineName))
             {
@@ -271,6 +288,12 @@ namespace JackCompiler.Net
             }
 
             return ("doStatement", instructions);
+        }
+
+        private bool IsMethodCall(string subroutineName)
+        {
+            //Only method calls will have the dot "." in the subroutineName
+            return subroutineName.Contains(".");
         }
 
         private (string ConstructType, IList<string> ConstructInstructions) CompileLet(Stack<Token> tokens)
