@@ -9,10 +9,17 @@
             _subroutineName = subroutineName;
         }
 
-        public bool IsMethod()
+        public bool IsMethod(SymbolTable symbolTable)
         {
-            //Only method calls will have the dot "." in the subroutineName
-            return _subroutineName.Contains(".");
+            if (_subroutineName.Contains("."))
+            {
+                //if a symbol exists for the first part of the subroutine, then it
+                //is an object, and therefore a method call
+                return symbolTable.IndexOf(_subroutineName.Split('.')[0]) > -1;
+            }
+
+            //therefore method call within class
+            return true;
         }
 
         public Symbol GetObjectSymbol(SymbolTable symbolTable)

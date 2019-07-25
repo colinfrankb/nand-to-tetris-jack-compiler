@@ -255,8 +255,9 @@ namespace JackCompiler.Net
 
             var subroutine = new Subroutine(subroutineName);
 
-            if (subroutine.IsMethod())
+            if (subroutine.IsMethod(_symbolTable))
             {
+                //TODO: push pointer 0 or push local|argument x
                 var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
 
                 instructions.AddRange(_vmWriter.WritePush(objectSymbol.ToSegment(), objectSymbol.RunningIndex));
@@ -270,8 +271,9 @@ namespace JackCompiler.Net
                 instructions.AddRange(WriteExpression(expressionTree));
             }
 
-            if (subroutine.IsMethod())
+            if (subroutine.IsMethod(_symbolTable))
             {
+                //TODO: Either call with Type of the variable or the class name of the file
                 var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
                 var callingSubroutineName = $"{objectSymbol.Type}.{subroutineName.Split('.')[1]}";
 
@@ -288,12 +290,6 @@ namespace JackCompiler.Net
             }
 
             return ("doStatement", instructions);
-        }
-
-        private bool IsMethodCall(string subroutineName)
-        {
-            //Only method calls will have the dot "." in the subroutineName
-            return subroutineName.Contains(".");
         }
 
         private (string ConstructType, IList<string> ConstructInstructions) CompileLet(Stack<Token> tokens)
