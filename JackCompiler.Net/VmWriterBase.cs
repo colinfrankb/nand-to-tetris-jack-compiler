@@ -24,7 +24,7 @@ namespace JackCompiler.Net
 
         public bool IsVariable(XmlNode termNode)
         {
-            return GetTermNodeKind(termNode) == "variable";
+            return GetTermNodeKind(termNode) == "variable" || termNode.FirstChild.Name == "identifier";
         }
 
         public bool IsSubroutineCall(XmlNode termNode)

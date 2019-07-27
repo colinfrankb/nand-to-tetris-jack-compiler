@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Xml;
 
 namespace JackCompiler.Net
@@ -21,11 +19,6 @@ namespace JackCompiler.Net
             {
                 $"call {functionName} {nArgs}"
             };
-
-            if (functionName.Contains("Output."))
-            {
-                instructions.AddRange(WritePop("temp", 0));
-            }
 
             return instructions;
         }

@@ -22,6 +22,11 @@
             return true;
         }
 
+        public bool IsMethodCallFromObject()
+        {
+            return _subroutineName.Contains(".");
+        }
+
         public Symbol GetObjectSymbol(SymbolTable symbolTable)
         {
             var objectIdentifier = _subroutineName.Split('.')[0];

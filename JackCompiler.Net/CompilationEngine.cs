@@ -257,10 +257,16 @@ namespace JackCompiler.Net
 
             if (subroutine.IsMethod(_symbolTable))
             {
-                //TODO: push pointer 0 or push local|argument x
-                var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
+                if (subroutine.IsMethodCallFromObject())
+                {
+                    var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
 
-                instructions.AddRange(_vmWriter.WritePush(objectSymbol.ToSegment(), objectSymbol.RunningIndex));
+                    instructions.AddRange(_vmWriter.WritePush(objectSymbol.ToSegment(), objectSymbol.RunningIndex));
+                }
+                else
+                {
+                    instructions.AddRange(_vmWriter.WritePush("pointer", 0));
+                }
             }
 
             //Push result of expressions in expressionlist onto global stack
@@ -273,9 +279,17 @@ namespace JackCompiler.Net
 
             if (subroutine.IsMethod(_symbolTable))
             {
-                //TODO: Either call with Type of the variable or the class name of the file
-                var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
-                var callingSubroutineName = $"{objectSymbol.Type}.{subroutineName.Split('.')[1]}";
+                var callingSubroutineName = string.Empty;
+
+                if (subroutine.IsMethodCallFromObject())
+                {
+                    var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
+                    callingSubroutineName = $"{objectSymbol.Type}.{subroutineName.Split('.')[1]}";
+                }
+                else
+                {
+                    callingSubroutineName = $"{_className}.{subroutineName}";
+                }
 
                 instructions.AddRange(_vmWriter.WriteCall(callingSubroutineName, expressionTreeList.ChildNodes.Count + 1));
             }
@@ -288,6 +302,8 @@ namespace JackCompiler.Net
             {
                 _currentExecutingSubroutine = subroutineName;
             }
+
+            instructions.AddRange(_vmWriter.WritePop("temp", 0));
 
             return ("doStatement", instructions);
         }
@@ -332,11 +348,6 @@ namespace JackCompiler.Net
             instructions.AddRange(WriteExpression(valueExpressionTree));
 
             var symbol = _symbolTable.GetSymbolByName(identifierName);
-
-            //TODO: Set an int
-            //TODO: Set a string
-            //TODO: Set an object
-            //TODO: Set a field of an object
 
             instructions.AddRange(_vmWriter.WritePop(symbol.ToSegment(), symbol.RunningIndex));
 
@@ -662,7 +673,6 @@ namespace JackCompiler.Net
             else if (_vmWriter.IsVariable(termNode))
             {
                 var variableName = termNode.FirstChild.InnerText;
-                var subroutineName = termNode.Attributes["subroutine"].Value;
                 var symbol = _symbolTable.GetSymbolByName(variableName);
 
                 instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
