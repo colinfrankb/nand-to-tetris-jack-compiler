@@ -4,6 +4,6 @@
     <DebuggerFlavor>ProjectDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup>
-    <ActiveDebugProfile>Square</ActiveDebugProfile>
+    <ActiveDebugProfile>Average</ActiveDebugProfile>
   </PropertyGroup>
 </Project>

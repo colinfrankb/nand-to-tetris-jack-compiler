@@ -314,6 +314,7 @@ namespace JackCompiler.Net
             var identifierName = string.Empty;
             var currentIndex = -1;
             var lastTokenValue = string.Empty;
+            var arrayIndexExpression = new List<string>();
             var valueExpression = new List<string>();
 
             while (lastTokenValue != ";")
@@ -324,7 +325,7 @@ namespace JackCompiler.Net
                 {
                     var expressionTokens = PopExpressionTokensBetweenBrackets("[", "]", tokens);
 
-                    instructions.AddRange(CompileExpression(expressionTokens));
+                    arrayIndexExpression.AddRange(CompileExpression(expressionTokens));
                 }
                 else if (lastTokenValue == "=")
                 {
@@ -343,13 +344,33 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
+            if (arrayIndexExpression.Any())
+            {
+                //the symbol points to the base address which is also the first index of
+                //the array e.g. array[0] is base address
+                var symbol = _symbolTable.GetSymbolByName(identifierName);
+                var arrayIndexExpressionTree = ExpressionTree.ConvertToXmlDocument(arrayIndexExpression).FirstChild;
+
+                instructions.AddRange(WriteExpression(arrayIndexExpressionTree));
+                instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
+                instructions.Add("add");
+                instructions.AddRange(_vmWriter.WritePop("pointer", 1));
+            }
+
             var valueExpressionTree = ExpressionTree.ConvertToXmlDocument(valueExpression).FirstChild;
 
             instructions.AddRange(WriteExpression(valueExpressionTree));
 
-            var symbol = _symbolTable.GetSymbolByName(identifierName);
+            if (arrayIndexExpression.Any())
+            {
+                instructions.AddRange(_vmWriter.WritePop("that", 0));
+            }
+            else
+            {
+                var symbol = _symbolTable.GetSymbolByName(identifierName);
 
-            instructions.AddRange(_vmWriter.WritePop(symbol.ToSegment(), symbol.RunningIndex));
+                instructions.AddRange(_vmWriter.WritePop(symbol.ToSegment(), symbol.RunningIndex));
+            }
 
             return ("letStatement", instructions);
         }
@@ -446,7 +467,7 @@ namespace JackCompiler.Net
             {
                 if (Regex.IsMatch(token.TokenType, $"({TokenType.IntegerConstant}|{TokenType.StringConstant}|{TokenType.Keyword})"))
                 {
-                    instructions.Add("<term>");
+                    instructions.Add($"<term kind=\"{token.TokenType}\">");
                     instructions.Add(ToXmlElement(token));
                     instructions.Add("</term>");
                 }
@@ -624,11 +645,11 @@ namespace JackCompiler.Net
 
                 instructions.AddRange(_vmWriter.WritePush("constant", termValue));
             }
-            if (_vmWriter.IsThis(termNode))
+            else if (_vmWriter.IsThis(termNode))
             {
                 instructions.AddRange(_vmWriter.WritePush("pointer", 0));
             }
-            if (_vmWriter.IsBoolean(termNode))
+            else if (_vmWriter.IsBoolean(termNode))
             {
                 var termValue = _vmWriter.GetBooleanValue(termNode);
 
@@ -675,7 +696,37 @@ namespace JackCompiler.Net
                 var variableName = termNode.FirstChild.InnerText;
                 var symbol = _symbolTable.GetSymbolByName(variableName);
 
-                instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
+                //if there are more than 1 ChildNode for a variable, then it must be an array index
+                //in the form array[expression]
+                if (termNode.ChildNodes.Count > 1)
+                {
+                    //therefore the node after the "[" symbol is the expression
+                    var arrayIndexExpressionTree = termNode.ChildNodes.Item(2);
+
+                    instructions.AddRange(WriteExpression(arrayIndexExpressionTree));
+                    instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
+                    instructions.Add("add");
+                    instructions.AddRange(_vmWriter.WritePop("pointer", 1));
+                    instructions.AddRange(_vmWriter.WritePush("that", 0));
+                }
+                else
+                {
+                    instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
+                }
+            }
+            else if (_vmWriter.IsString(termNode))
+            {
+                var stringValue = termNode.FirstChild.InnerText;
+                instructions.AddRange(_vmWriter.WritePush("constant", stringValue.Length));
+                instructions.AddRange(_vmWriter.WriteCall("String.new", 1));
+                //String.new is a constructor, so it pushes the base address onto the global stack
+                foreach(char c in stringValue)
+                {
+                    instructions.AddRange(_vmWriter.WritePush("constant", c));
+                    //String.appendChar also pushes the base address onto the global stack, so I don't
+                    //have to when creating a string from a constant
+                    instructions.AddRange(_vmWriter.WriteCall("String.appendChar", 2));
+                }
             }
 
             return instructions;

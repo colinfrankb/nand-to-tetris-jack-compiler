@@ -19,6 +19,10 @@
     "Square": {
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\Square"
+    },
+    "Average": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\Average"
     }
   }
 }
