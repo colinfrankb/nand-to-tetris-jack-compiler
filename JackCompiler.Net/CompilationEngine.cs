@@ -803,6 +803,7 @@ namespace JackCompiler.Net
             var instructions = new List<string>();
             var lastTokenValue = string.Empty;
             var currentIndex = -1;
+            var identifierKind = string.Empty;
             var identifierType = string.Empty;
             var identifierNames = new List<string>();
 
@@ -811,7 +812,11 @@ namespace JackCompiler.Net
                 currentIndex++;
                 var token = tokens.Pop();
 
-                if (currentIndex == 1)
+                if (currentIndex == 0)
+                {
+                    identifierKind = token.Value;
+                }
+                else if (currentIndex == 1)
                 {
                     identifierType = token.Value;
                 }
@@ -825,7 +830,7 @@ namespace JackCompiler.Net
 
             foreach (var identifierName in identifierNames)
             {
-                _symbolTable.DefineIdentifier(identifierName, identifierType, "field");
+                _symbolTable.DefineIdentifier(identifierName, identifierType, identifierKind);
             }
 
             return ("classVarDec", instructions);
