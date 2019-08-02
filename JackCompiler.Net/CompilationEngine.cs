@@ -678,13 +678,47 @@ namespace JackCompiler.Net
                 //this subroutineName will be the fully qualified name i.e <class>.<subroutine>
                 var subroutineName = termNode.FirstChild.InnerText;
                 var expressionTreeList = termNode.ChildNodes[1];
+                var subroutine = new Subroutine(subroutineName);
+
+                if (subroutine.IsMethod(_symbolTable))
+                {
+                    if (subroutine.IsMethodCallFromObject())
+                    {
+                        var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
+
+                        instructions.AddRange(_vmWriter.WritePush(objectSymbol.ToSegment(), objectSymbol.RunningIndex));
+                    }
+                    else
+                    {
+                        instructions.AddRange(_vmWriter.WritePush("pointer", 0));
+                    }
+                }
 
                 foreach (XmlNode expressionTree in expressionTreeList.ChildNodes)
                 {
                     instructions.AddRange(WriteExpression(expressionTree));
                 }
 
-                instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.ChildNodes.Count));
+                if (subroutine.IsMethod(_symbolTable))
+                {
+                    var callingSubroutineName = string.Empty;
+
+                    if (subroutine.IsMethodCallFromObject())
+                    {
+                        var objectSymbol = subroutine.GetObjectSymbol(_symbolTable);
+                        callingSubroutineName = $"{objectSymbol.Type}.{subroutineName.Split('.')[1]}";
+                    }
+                    else
+                    {
+                        callingSubroutineName = $"{_className}.{subroutineName}";
+                    }
+
+                    instructions.AddRange(_vmWriter.WriteCall(callingSubroutineName, expressionTreeList.ChildNodes.Count + 1));
+                }
+                else
+                {
+                    instructions.AddRange(_vmWriter.WriteCall(subroutineName, expressionTreeList.ChildNodes.Count));
+                }
 
                 if (IsUserDefinedSubroutine(subroutineName))
                 {
@@ -861,6 +895,14 @@ namespace JackCompiler.Net
             if (subroutineName == "Main.main")
             {
                 _currentExecutingSubroutine = subroutineName;
+            }
+
+            if (subroutineKind == "method")
+            {
+                //The SymbolTable's running index for arguments need to start at 1, to 
+                //cater for the argument 0, that is set to the object that this subroutine
+                //is executing on
+                _symbolTable.DefineIdentifier(string.Empty, string.Empty, "argument");
             }
 
             for (int i = 0, j = 1; i < parameterList.Count; i += 2, j += 2)
