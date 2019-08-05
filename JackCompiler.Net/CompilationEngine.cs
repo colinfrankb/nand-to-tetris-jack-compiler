@@ -344,6 +344,10 @@ namespace JackCompiler.Net
                 lastTokenValue = token.Value;
             }
 
+            var valueExpressionTree = ExpressionTree.ConvertToXmlDocument(valueExpression).FirstChild;
+
+            instructions.AddRange(WriteExpression(valueExpressionTree));
+
             if (arrayIndexExpression.Any())
             {
                 //the symbol points to the base address which is also the first index of
@@ -355,14 +359,6 @@ namespace JackCompiler.Net
                 instructions.AddRange(_vmWriter.WritePush(symbol.ToSegment(), symbol.RunningIndex));
                 instructions.Add("add");
                 instructions.AddRange(_vmWriter.WritePop("pointer", 1));
-            }
-
-            var valueExpressionTree = ExpressionTree.ConvertToXmlDocument(valueExpression).FirstChild;
-
-            instructions.AddRange(WriteExpression(valueExpressionTree));
-
-            if (arrayIndexExpression.Any())
-            {
                 instructions.AddRange(_vmWriter.WritePop("that", 0));
             }
             else
@@ -485,14 +481,14 @@ namespace JackCompiler.Net
 
                         instructions.Add("</term>");
                     }
-                    else if (token.Value == "-")
+                    else if (token.Value == "-" && instructions.Last() == "</term>") // "-" is an operator
                     {
-                        var isOperator = instructions.Last() == "</term>";
-
-                        if (!isOperator)
-                        {
-                            instructions.Add("<term>"); //opening term for expression
-                        }
+                        //merely append "-" operator and allow the loop to handle subsequent tokens
+                        instructions.Add(ToXmlElement(token));
+                    }
+                    else if (token.Value == "-" && instructions.Last() != "</term>") // "-" is arithmetic negation
+                    {
+                        instructions.Add("<term>"); //opening term for expression
 
                         instructions.Add(ToXmlElement(token));
                         //following tokens can be a term
@@ -503,10 +499,7 @@ namespace JackCompiler.Net
                         instructions.Add(ToXmlElement(integerConstantTerm));
                         instructions.Add("</term>");
 
-                        if (!isOperator)
-                        {
-                            instructions.Add("</term>"); //closing term for expression
-                        }
+                        instructions.Add("</term>"); //closing term for expression
                     }
                     else if (token.Value == "~")
                     {
@@ -648,6 +641,10 @@ namespace JackCompiler.Net
             else if (_vmWriter.IsThis(termNode))
             {
                 instructions.AddRange(_vmWriter.WritePush("pointer", 0));
+            }
+            else if (_vmWriter.IsNull(termNode))
+            {
+                instructions.AddRange(_vmWriter.WritePush("constant", 0));
             }
             else if (_vmWriter.IsBoolean(termNode))
             {

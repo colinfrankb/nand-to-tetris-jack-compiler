@@ -27,6 +27,10 @@
     "Pong": {
       "commandName": "Project",
       "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\Pong"
+    },
+    "ComplexArrays": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Workspace\\nand-to-tetris\\nand2tetris\\projects\\11\\ComplexArrays"
     }
   }
 }

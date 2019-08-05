@@ -76,5 +76,10 @@ namespace JackCompiler.Net
         {
             return termNode.FirstChild.Name == TokenType.Keyword && termNode.FirstChild.InnerText.Trim() == "this";
         }
+
+        internal bool IsNull(XmlNode termNode)
+        {
+            return termNode.FirstChild.Name == TokenType.Keyword && termNode.FirstChild.InnerText.Trim() == "null";
+        }
     }
 }

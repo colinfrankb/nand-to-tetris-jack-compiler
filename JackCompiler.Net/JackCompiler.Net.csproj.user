@@ -4,6 +4,6 @@
     <DebuggerFlavor>ProjectDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup>
-    <ActiveDebugProfile>Pong</ActiveDebugProfile>
+    <ActiveDebugProfile>ComplexArrays</ActiveDebugProfile>
   </PropertyGroup>
 </Project>
